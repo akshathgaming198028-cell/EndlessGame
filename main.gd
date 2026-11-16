@@ -70,8 +70,8 @@ var custom_model: Node3D = null
 var anim: AnimationPlayer = null
 
 var cam: Camera3D
-var cam_pos := Vector3(0, 3.3, 4.6)
-var cam_look := Vector3(0, 1.3, -8)
+var cam_pos := Vector3(0, 3.0, 4.6)
+var cam_look := Vector3(0, 2.3, -10)
 
 var score_label: Label
 var msg_label: Label
@@ -259,7 +259,7 @@ func _make_camera() -> void:
 	cam = Camera3D.new()
 	cam.keep_aspect = Camera3D.KEEP_WIDTH
 	cam.fov = 62.0
-	cam.far = 900.0
+	cam.far = 1500.0
 	add_child(cam)
 	cam.make_current()
 	cam.position = cam_pos
@@ -608,8 +608,8 @@ func _make_map() -> void:
 		inst.scale = Vector3.ONE * MAP_SCALE
 		tile.add_child(inst)
 		var box := _map_box(inst, tile)
-		# centre across lanes, lowest point at y=0, street ends exactly at z=0 and the tile covers [-size, 0]
-		inst.position = Vector3(-box.get_center().x, -box.position.y, -box.end.z)
+		# street surface is at model y=0 (measured). Centre across lanes, street ends exactly at z=0 and the tile covers [-size, 0]
+		inst.position = Vector3(-box.get_center().x, 0.0, -box.end.z)
 		if i == 0:
 			map_period = box.size.z
 		tile.position.z = -i * map_period
@@ -957,9 +957,9 @@ func _animate_player(dt: float) -> void:
 
 func _update_camera(dt: float) -> void:
 	var k: float = 1.0 - exp(-8.0 * dt)
-	var target := Vector3(px * 0.5, 3.3 + py * 0.12, 4.6)
+	var target := Vector3(px * 0.5, 3.0 + py * 0.12, 4.6)
 	cam_pos = cam_pos.lerp(target, k)
-	cam_look = cam_look.lerp(Vector3(px * 0.4, 1.3 + py * 0.08, -8.0), k)
+	cam_look = cam_look.lerp(Vector3(px * 0.4, 2.3 + py * 0.08, -10.0), k)
 	var off := Vector3.ZERO
 	if shake > 0.0:
 		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.4
