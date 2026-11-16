@@ -14,16 +14,13 @@ extends Node3D
 const LANE_W := 2.4
 # --- MAP (Subway Surfers model in assets/map.glb). Tweak these after testing. ---
 const MAP_PATH := "res://assets/map.glb"
-const MAP_LEN := 414.3      # length of the street along its own X axis, in model units
-const MAP_SCALE := 1.0      # bigger = larger world. Try 0.5 if it looks giant, 2.0 if tiny
-const MAP_OFFSET_X := 4.3   # centres the street across the lanes
-const MAP_Y := 82.5         # lifts the model so its lowest point is at ground y=0
+const MAP_SCALE := 1.0      # extra size multiplier. Try 0.5 if the track looks giant, 2.0 if tiny
 const CHUNK_LEN := 30.0
 const NUM_CHUNKS := 6
-const GRAVITY := 38.0
-const JUMP_V := 14.0
+const GRAVITY := 30.0
+const JUMP_V := 12.5
 const SLIDE_TIME := 0.65
-const SWIPE_PX := 38.0
+const SWIPE_PX := 30.0
 const START_SPEED := 15.0
 const MAX_SPEED := 34.0
 
@@ -54,6 +51,7 @@ var prev_train := false
 var chunks: Array = []
 var map_scene: PackedScene = null
 var map_tiles: Array = []
+var map_period := 0.0
 var mat_cache := {}
 var m_box: BoxMesh
 var m_cone: ArrayMesh
@@ -72,8 +70,8 @@ var custom_model: Node3D = null
 var anim: AnimationPlayer = null
 
 var cam: Camera3D
-var cam_pos := Vector3(0, 2.6, 4.6)
-var cam_look := Vector3(0, 1.2, -8)
+var cam_pos := Vector3(0, 3.3, 4.6)
+var cam_look := Vector3(0, 1.3, -8)
 
 var score_label: Label
 var msg_label: Label
@@ -245,7 +243,7 @@ func _make_environment() -> void:
 	env.ambient_light_energy = 0.75
 	env.fog_enabled = true
 	env.fog_light_color = Color("cfe8ff")
-	env.fog_density = 0.015
+	env.fog_density = 0.003
 	env.fog_sky_affect = 0.0
 	var we := WorldEnvironment.new()
 	we.environment = env
@@ -261,7 +259,7 @@ func _make_camera() -> void:
 	cam = Camera3D.new()
 	cam.keep_aspect = Camera3D.KEEP_WIDTH
 	cam.fov = 62.0
-	cam.far = 300.0
+	cam.far = 900.0
 	add_child(cam)
 	cam.make_current()
 	cam.position = cam_pos
@@ -427,7 +425,7 @@ func _make_audio() -> void:
 
 func _reset_world() -> void:
 	for i in map_tiles.size():
-		map_tiles[i].position.z = -i * MAP_LEN * MAP_SCALE
+		map_tiles[i].position.z = -i * map_period
 	for c in chunks:
 		var old: Node3D = c["node"]
 		old.queue_free()
@@ -602,23 +600,44 @@ func _make_map() -> void:
 	map_scene = load(MAP_PATH) as PackedScene
 	if map_scene == null:
 		return
-	var len_units := MAP_LEN * MAP_SCALE
 	for i in 2:
 		var tile := Node3D.new()
 		add_child(tile)
 		var inst: Node3D = map_scene.instantiate()
 		inst.rotation_degrees.y = -90.0
 		inst.scale = Vector3.ONE * MAP_SCALE
-		inst.position = Vector3(MAP_OFFSET_X, MAP_Y, -1.0) * MAP_SCALE
 		tile.add_child(inst)
-		tile.position.z = -i * len_units
+		var box := _map_box(inst, tile)
+		# centre across lanes, lowest point at y=0, street ends exactly at z=0 and the tile covers [-size, 0]
+		inst.position = Vector3(-box.get_center().x, -box.position.y, -box.end.z)
+		if i == 0:
+			map_period = box.size.z
+		tile.position.z = -i * map_period
 		map_tiles.append(tile)
+
+
+func _map_box(root: Node3D, rel_to: Node3D) -> AABB:
+	var box := AABB()
+	var first := true
+	var meshes: Array = []
+	_collect_meshes(root, meshes)
+	for mi in meshes:
+		var b: AABB = rel_to.global_transform.affine_inverse() * mi.global_transform * mi.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	return box
+
+
+func _collect_meshes(n: Node, out: Array) -> void:
+	if n is MeshInstance3D:
+		out.append(n)
+	for c in n.get_children():
+		_collect_meshes(c, out)
 
 
 func _move_map(dt: float) -> void:
 	if map_tiles.size() < 2:
 		return
-	var len_units := MAP_LEN * MAP_SCALE
 	for t in map_tiles:
 		t.position.z += speed * dt
 	for t in map_tiles:
@@ -627,7 +646,7 @@ func _move_map(dt: float) -> void:
 			for o in map_tiles:
 				if o != t:
 					min_z = minf(min_z, o.position.z)
-			t.position.z = min_z - len_units
+			t.position.z = min_z - map_period
 
 
 func _score() -> int:
@@ -714,7 +733,7 @@ func _jump() -> void:
 		slide_t = 0.0
 		sfx_jump.play()
 	else:
-		jump_buf = 0.15
+		jump_buf = 0.2
 
 
 func _slide() -> void:
@@ -938,9 +957,9 @@ func _animate_player(dt: float) -> void:
 
 func _update_camera(dt: float) -> void:
 	var k: float = 1.0 - exp(-8.0 * dt)
-	var target := Vector3(px * 0.5, 2.6 + py * 0.25, 4.6)
+	var target := Vector3(px * 0.5, 3.3 + py * 0.12, 4.6)
 	cam_pos = cam_pos.lerp(target, k)
-	cam_look = cam_look.lerp(Vector3(px * 0.4, 1.2 + py * 0.1, -8.0), k)
+	cam_look = cam_look.lerp(Vector3(px * 0.4, 1.3 + py * 0.08, -8.0), k)
 	var off := Vector3.ZERO
 	if shake > 0.0:
 		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.4
