@@ -12,6 +12,12 @@ extends Node3D
 #                                animations with run / jump / slide / die / idle in the name)
 
 const LANE_W := 2.4
+# --- MAP (Subway Surfers model in assets/map.glb). Tweak these after testing. ---
+const MAP_PATH := "res://assets/map.glb"
+const MAP_LEN := 414.3      # length of the street along its own X axis, in model units
+const MAP_SCALE := 1.0      # bigger = larger world. Try 0.5 if it looks giant, 2.0 if tiny
+const MAP_OFFSET_X := 4.3   # centres the street across the lanes
+const MAP_Y := 82.5         # lifts the model so its lowest point is at ground y=0
 const CHUNK_LEN := 30.0
 const NUM_CHUNKS := 6
 const GRAVITY := 38.0
@@ -46,6 +52,8 @@ var free_lane := 0
 var prev_train := false
 
 var chunks: Array = []
+var map_scene: PackedScene = null
+var map_tiles: Array = []
 var mat_cache := {}
 var m_box: BoxMesh
 var m_cone: ArrayMesh
@@ -103,6 +111,7 @@ func _ready() -> void:
 	_make_camera()
 	_make_ui()
 	_make_audio()
+	_make_map()
 	_reset_world()
 	_set_state(State.MENU)
 
@@ -417,6 +426,8 @@ func _make_audio() -> void:
 # ---------------------------------------------------------------- world generation
 
 func _reset_world() -> void:
+	for i in map_tiles.size():
+		map_tiles[i].position.z = -i * MAP_LEN * MAP_SCALE
 	for c in chunks:
 		var old: Node3D = c["node"]
 		old.queue_free()
@@ -434,7 +445,8 @@ func _spawn_chunk(index: int, z: float) -> void:
 	node.position = Vector3(0, 0, z)
 	add_child(node)
 	var items: Array = []
-	_build_scenery(node)
+	if map_scene == null:
+		_build_scenery(node)
 	if index >= 2:
 		_build_obstacles(node, items)
 	chunks.append({"node": node, "items": items})
@@ -583,6 +595,40 @@ func _recycle_chunks() -> void:
 
 
 # ---------------------------------------------------------------- game flow
+
+func _make_map() -> void:
+	if not ResourceLoader.exists(MAP_PATH):
+		return
+	map_scene = load(MAP_PATH) as PackedScene
+	if map_scene == null:
+		return
+	var len_units := MAP_LEN * MAP_SCALE
+	for i in 2:
+		var tile := Node3D.new()
+		add_child(tile)
+		var inst: Node3D = map_scene.instantiate()
+		inst.rotation_degrees.y = -90.0
+		inst.scale = Vector3.ONE * MAP_SCALE
+		inst.position = Vector3(MAP_OFFSET_X, MAP_Y, -1.0) * MAP_SCALE
+		tile.add_child(inst)
+		tile.position.z = -i * len_units
+		map_tiles.append(tile)
+
+
+func _move_map(dt: float) -> void:
+	if map_tiles.size() < 2:
+		return
+	var len_units := MAP_LEN * MAP_SCALE
+	for t in map_tiles:
+		t.position.z += speed * dt
+	for t in map_tiles:
+		if t.position.z > 40.0:
+			var min_z := INF
+			for o in map_tiles:
+				if o != t:
+					min_z = minf(min_z, o.position.z)
+			t.position.z = min_z - len_units
+
 
 func _score() -> int:
 	return int(dist) + coins * 10
@@ -760,6 +806,7 @@ func _update_play(dt: float) -> void:
 	for c in chunks:
 		var n: Node3D = c["node"]
 		n.position.z += speed * dt
+	_move_map(dt)
 	_recycle_chunks()
 	_check_collisions()
 
