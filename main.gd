@@ -64,8 +64,8 @@ var custom_model: Node3D = null
 var anim: AnimationPlayer = null
 
 var cam: Camera3D
-var cam_pos := Vector3(0, 4.4, 8.2)
-var cam_look := Vector3(0, 1.3, -10)
+var cam_pos := Vector3(0, 2.6, 4.6)
+var cam_look := Vector3(0, 1.2, -8)
 
 var score_label: Label
 var msg_label: Label
@@ -76,6 +76,7 @@ var music: AudioStreamPlayer
 
 var swipe_start := Vector2.ZERO
 var swiping := false
+var swipe_used := false
 
 var c_road := Color("3a3f55")
 var c_line := Color("e9edf7")
@@ -250,7 +251,7 @@ func _make_environment() -> void:
 func _make_camera() -> void:
 	cam = Camera3D.new()
 	cam.keep_aspect = Camera3D.KEEP_WIDTH
-	cam.fov = 72.0
+	cam.fov = 62.0
 	cam.far = 300.0
 	add_child(cam)
 	cam.make_current()
@@ -685,20 +686,22 @@ func _input(e: InputEvent) -> void:
 		if e.pressed:
 			swipe_start = e.position
 			swiping = true
+			swipe_used = false
 			_tap()
 		else:
 			swiping = false
+			swipe_used = false
 	elif e is InputEventScreenDrag:
-		if swiping and state == State.PLAY:
+		if swiping and not swipe_used and state == State.PLAY:
 			var d: Vector2 = e.position - swipe_start
 			if d.length() >= SWIPE_PX:
+				swipe_used = true
 				if absf(d.x) > absf(d.y):
 					_move_lane(1 if d.x > 0.0 else -1)
 				elif d.y < 0.0:
 					_jump()
 				else:
 					_slide()
-				swipe_start = e.position
 	elif e is InputEventKey:
 		if e.pressed and not e.echo:
 			if e.keycode == KEY_LEFT or e.keycode == KEY_A:
@@ -888,18 +891,18 @@ func _animate_player(dt: float) -> void:
 
 func _update_camera(dt: float) -> void:
 	var k: float = 1.0 - exp(-8.0 * dt)
-	var target := Vector3(px * 0.6, 4.4 + py * 0.3, 8.2)
+	var target := Vector3(px * 0.5, 2.6 + py * 0.25, 4.6)
 	cam_pos = cam_pos.lerp(target, k)
-	cam_look = cam_look.lerp(Vector3(px * 0.4, 1.3 + py * 0.15, -10.0), k)
+	cam_look = cam_look.lerp(Vector3(px * 0.4, 1.2 + py * 0.1, -8.0), k)
 	var off := Vector3.ZERO
 	if shake > 0.0:
 		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.4
 		shake = maxf(0.0, shake - dt * 2.0)
 	cam.position = cam_pos + off
 	cam.look_at(cam_look)
-	var t_fov: float = 72.0
+	var t_fov: float = 62.0
 	if state == State.PLAY:
-		t_fov = 72.0 + (speed - START_SPEED) * 0.25
+		t_fov = 62.0 + (speed - START_SPEED) * 0.2
 	cam.fov = lerpf(cam.fov, t_fov, k)
 
 
