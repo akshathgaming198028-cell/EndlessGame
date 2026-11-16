@@ -14,12 +14,12 @@ extends Node3D
 const LANE_W := 2.4
 # --- MAP (Subway Surfers model in assets/map.glb). Tweak these after testing. ---
 const MAP_PATH := "res://assets/map.glb"
-const MAP_SCALE := 0.108    # sized so the street is 3 lanes wide (street is 66.6 model units wide)
+const MAP_SCALE := 0.4      # the open track between the bush walls is 18 model units wide = 3 lanes
 # street measured on the model, in model units (before MAP_SCALE)
-const MAP_STREET_CX := 33.3    # centre of the street across its width
+const MAP_STREET_CX := 53.0    # centre of the open track (between the bush walls) across its width
 const MAP_STREET_Z0 := -895.6  # start of street along its length
 const MAP_STREET_Z1 := 0.4     # end of street along its length
-const MAP_TILES := 4           # copies laid end to end (each is ~97 units long)
+const MAP_TILES := 3           # copies laid end to end (each is ~358 units long)
 const CHUNK_LEN := 30.0
 const NUM_CHUNKS := 6
 const GRAVITY := 30.0
