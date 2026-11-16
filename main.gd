@@ -14,7 +14,12 @@ extends Node3D
 const LANE_W := 2.4
 # --- MAP (Subway Surfers model in assets/map.glb). Tweak these after testing. ---
 const MAP_PATH := "res://assets/map.glb"
-const MAP_SCALE := 1.0      # extra size multiplier. Try 0.5 if the track looks giant, 2.0 if tiny
+const MAP_SCALE := 0.108    # sized so the street is 3 lanes wide (street is 66.6 model units wide)
+# street measured on the model, in model units (before MAP_SCALE)
+const MAP_STREET_CX := 33.3    # centre of the street across its width
+const MAP_STREET_Z0 := -895.6  # start of street along its length
+const MAP_STREET_Z1 := 0.4     # end of street along its length
+const MAP_TILES := 4           # copies laid end to end (each is ~97 units long)
 const CHUNK_LEN := 30.0
 const NUM_CHUNKS := 6
 const GRAVITY := 30.0
@@ -70,8 +75,8 @@ var custom_model: Node3D = null
 var anim: AnimationPlayer = null
 
 var cam: Camera3D
-var cam_pos := Vector3(0, 3.0, 4.6)
-var cam_look := Vector3(0, 2.3, -10)
+var cam_pos := Vector3(0, 5.5, 6.5)
+var cam_look := Vector3(0, 1.0, -9)
 
 var score_label: Label
 var msg_label: Label
@@ -600,18 +605,16 @@ func _make_map() -> void:
 	map_scene = load(MAP_PATH) as PackedScene
 	if map_scene == null:
 		return
-	for i in 2:
+	map_period = (MAP_STREET_Z1 - MAP_STREET_Z0) * MAP_SCALE
+	for i in MAP_TILES:
 		var tile := Node3D.new()
 		add_child(tile)
 		var inst: Node3D = map_scene.instantiate()
 		inst.rotation_degrees.y = -90.0
 		inst.scale = Vector3.ONE * MAP_SCALE
+		# street centre goes to x=0 (lanes), street end goes to z=0, street surface stays at y=0
+		inst.position = Vector3(-MAP_STREET_CX * MAP_SCALE, 0.0, -MAP_STREET_Z1 * MAP_SCALE)
 		tile.add_child(inst)
-		var box := _map_box(inst, tile)
-		# street surface is at model y=0 (measured). Centre across lanes, street ends exactly at z=0 and the tile covers [-size, 0]
-		inst.position = Vector3(-box.get_center().x, 0.0, -box.end.z)
-		if i == 0:
-			map_period = box.size.z
 		tile.position.z = -i * map_period
 		map_tiles.append(tile)
 
@@ -957,9 +960,9 @@ func _animate_player(dt: float) -> void:
 
 func _update_camera(dt: float) -> void:
 	var k: float = 1.0 - exp(-8.0 * dt)
-	var target := Vector3(px * 0.5, 3.0 + py * 0.12, 4.6)
+	var target := Vector3(px * 0.5, 5.5 + py * 0.12, 6.5)
 	cam_pos = cam_pos.lerp(target, k)
-	cam_look = cam_look.lerp(Vector3(px * 0.4, 2.3 + py * 0.08, -10.0), k)
+	cam_look = cam_look.lerp(Vector3(px * 0.4, 1.0 + py * 0.08, -9.0), k)
 	var off := Vector3.ZERO
 	if shake > 0.0:
 		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.4
