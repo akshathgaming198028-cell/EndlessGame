@@ -12,6 +12,22 @@ extends Node3D
 #                                animations with run / jump / slide / die / idle in the name)
 
 const LANE_W := 2.4
+# Kenney CC0 models (see CREDITS.md). Each is scaled to fit the box it replaces.
+const TRAIN_MODELS := [
+	"res://assets/trains/Locomotive Front/Locomotive_Front.fbx",
+	"res://assets/trains/High Speed Front/HighSpeed_Front.fbx",
+	"res://assets/trains/Cargo Train Front/CargoTrain_Front.fbx",
+]
+const BUILDING_MODELS := [
+	"res://assets/environment/Building/building_A.fbx",
+	"res://assets/environment/Building/building_C.fbx",
+	"res://assets/environment/Building/building_D.fbx",
+	"res://assets/environment/Building/building_E.fbx",
+	"res://assets/environment/Building/building_F.fbx",
+	"res://assets/environment/Building B/building_B.fbx",
+	"res://assets/environment/Building-otRsYa6pan/building_H.fbx",
+	"res://assets/environment/Building-bbH2Bg73qM/building_G.fbx",
+]
 # --- MAP (Subway Surfers model in assets/map.glb). Tweak these after testing. ---
 const MAP_PATH := "res://assets/map.glb"
 const MAP_SCALE := 0.4      # the open track between the bush walls is 18 model units wide = 3 lanes
@@ -474,7 +490,8 @@ func _build_scenery(node: Node3D) -> void:
 			var bx: float = side * (LANE_W * 1.5 + 2.6 + w * 0.5 + rng.randf_range(0.0, 3.0))
 			var bz: float = -10.0 + j * 10.0 + rng.randf_range(-1.5, 1.5)
 			var col: Color = building_colors[rng.randi() % building_colors.size()]
-			add_box(node, Vector3(w, h, d), Vector3(bx, h * 0.5 - 0.3, bz), col)
+			if not _fit_model(node, BUILDING_MODELS[rng.randi() % BUILDING_MODELS.size()], Vector3(w, h, d), Vector3(bx, h * 0.5 - 0.3, bz)):
+				add_box(node, Vector3(w, h, d), Vector3(bx, h * 0.5 - 0.3, bz), col)
 			add_box(node, Vector3(w + 0.3, 0.4, d + 0.3), Vector3(bx, h - 0.1, bz), col.darkened(0.25))
 			var rows: int = rng.randi_range(1, 3)
 			for r in rows:
@@ -574,15 +591,16 @@ func _add_item(node: Node3D, items: Array, type: String, x: float, z: float, y :
 		add_box(n, Vector3(2.1, 0.5, 0.35), Vector3(0, 1.4, 0), c_hazard)
 		add_box(n, Vector3(2.12, 0.12, 0.37), Vector3(0, 1.4, 0), c_dark)
 	elif type == "train":
-		var tc: Color = train_colors[rng.randi() % train_colors.size()]
-		add_box(n, Vector3(1.8, 0.35, 7.4), Vector3(0, 0.3, 0), c_dark)
-		add_box(n, Vector3(2.0, 2.3, 8.0), Vector3(0, 1.6, 0), tc)
-		add_box(n, Vector3(2.04, 0.4, 7.2), Vector3(0, 1.2, 0), tc.lightened(0.35))
-		add_box(n, Vector3(2.04, 0.55, 6.4), Vector3(0, 2.1, 0), Color("1d2a3f"))
-		add_box(n, Vector3(1.8, 0.2, 7.6), Vector3(0, 2.85, 0), c_white.darkened(0.15))
-		add_box(n, Vector3(1.5, 0.8, 0.06), Vector3(0, 2.1, 4.02), Color("1d2a3f"))
-		add_box(n, Vector3(0.3, 0.3, 0.08), Vector3(-0.6, 0.85, 4.02), c_hazard, 1.0)
-		add_box(n, Vector3(0.3, 0.3, 0.08), Vector3(0.6, 0.85, 4.02), c_hazard, 1.0)
+		if not _fit_model(n, TRAIN_MODELS[rng.randi() % TRAIN_MODELS.size()], Vector3(2.0, 2.6, 8.0), Vector3(0, 1.3, 0)):
+			var tc: Color = train_colors[rng.randi() % train_colors.size()]
+			add_box(n, Vector3(1.8, 0.35, 7.4), Vector3(0, 0.3, 0), c_dark)
+			add_box(n, Vector3(2.0, 2.3, 8.0), Vector3(0, 1.6, 0), tc)
+			add_box(n, Vector3(2.04, 0.4, 7.2), Vector3(0, 1.2, 0), tc.lightened(0.35))
+			add_box(n, Vector3(2.04, 0.55, 6.4), Vector3(0, 2.1, 0), Color("1d2a3f"))
+			add_box(n, Vector3(1.8, 0.2, 7.6), Vector3(0, 2.85, 0), c_white.darkened(0.15))
+			add_box(n, Vector3(1.5, 0.8, 0.06), Vector3(0, 2.1, 4.02), Color("1d2a3f"))
+			add_box(n, Vector3(0.3, 0.3, 0.08), Vector3(-0.6, 0.85, 4.02), c_hazard, 1.0)
+			add_box(n, Vector3(0.3, 0.3, 0.08), Vector3(0.6, 0.85, 4.02), c_hazard, 1.0)
 	items.append({"type": type, "x": x, "z": z, "y": y, "node": n, "alive": true})
 
 
@@ -649,6 +667,44 @@ func _prepare_map_meshes(root: Node) -> void:
 				# draw both sides of every face so nothing vanishes at close range
 				d.cull_mode = BaseMaterial3D.CULL_DISABLED
 				mi.set_surface_override_material(si, d)
+
+
+# Loads a model, scales it uniformly to fit `size`, and centres it on `at` (bottom at at.y - size.y/2).
+# Returns false if the model is missing, so the caller can draw a box instead.
+func _fit_model(parent: Node3D, path: String, size: Vector3, at: Vector3) -> bool:
+	if not ResourceLoader.exists(path):
+		return false
+	var ps := load(path) as PackedScene
+	if ps == null:
+		return false
+	var root := Node3D.new()
+	parent.add_child(root)
+	root.add_child(ps.instantiate())
+	var box := _model_box(root, parent)
+	# our trains and buildings run along Z, so turn models that are long along X
+	if box.size.x > box.size.z * 1.2 and size.z > size.x:
+		root.rotation_degrees.y = 90.0
+		box = _model_box(root, parent)
+	if box.size.x <= 0.0 or box.size.y <= 0.0 or box.size.z <= 0.0:
+		root.queue_free()
+		return false
+	var k := minf(size.x / box.size.x, minf(size.y / box.size.y, size.z / box.size.z))
+	var c := box.get_center()
+	root.scale = Vector3.ONE * k
+	root.position = Vector3(at.x - k * c.x, at.y - size.y * 0.5 - k * box.position.y, at.z - k * c.z)
+	return true
+
+
+func _model_box(root: Node3D, parent: Node3D) -> AABB:
+	var meshes: Array = []
+	_collect_meshes(root, meshes)
+	var box := AABB()
+	var first := true
+	for mi in meshes:
+		var b: AABB = parent.global_transform.affine_inverse() * mi.global_transform * mi.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	return box
 
 
 func _collect_meshes(n: Node, out: Array) -> void:
