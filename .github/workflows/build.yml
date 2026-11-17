@@ -59,7 +59,7 @@ jobs:
           set -e
           mkdir -p build
           godot --headless --path . --import || true
-          godot --headless --path . --export-debug "Android" build/game.apk
+          godot --headless --verbose --path . --export-debug "Android" build/game.apk
           ls -la build
           test -f build/game.apk
 
