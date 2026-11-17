@@ -393,9 +393,6 @@ func _load_anims(model: Node3D) -> void:
 	for i in skel.get_bone_count():
 		bones[_norm(skel.get_bone_name(i))] = skel.get_bone_name(i)
 	var skel_rel := str(model.get_path_to(skel))
-	var tgtq := {}
-	for ti in skel.get_bone_count():
-		tgtq[_norm(skel.get_bone_name(ti))] = skel.get_bone_global_rest(ti).basis.get_rotation_quaternion()
 	var lib := AnimationLibrary.new()
 	for key in ANIM_FILES:
 		var path: String = "res://assets/anims/" + ANIM_FILES[key]
@@ -408,11 +405,6 @@ func _load_anims(model: Node3D) -> void:
 		var sp := _find_anim(src)
 		if sp != null and sp.get_animation_list().size() > 0:
 			var a: Animation = sp.get_animation(sp.get_animation_list()[0]).duplicate()
-			var ssk := _find_skeleton(src)
-			var srcq := {}
-			if ssk != null:
-				for si in ssk.get_bone_count():
-					srcq[_norm(ssk.get_bone_name(si))] = ssk.get_bone_global_rest(si).basis.get_rotation_quaternion()
 			for t in range(a.get_track_count() - 1, -1, -1):
 				var np := a.track_get_path(t)
 				var bone := np.get_concatenated_subnames()
@@ -424,13 +416,6 @@ func _load_anims(model: Node3D) -> void:
 				if a.track_get_type(t) == Animation.TYPE_POSITION_3D and nb == "mixamorighips":
 					a.remove_track(t)
 					continue
-				# re-aim each rotation from the animation's rest pose to this model's rest pose
-				if a.track_get_type(t) == Animation.TYPE_ROTATION_3D and srcq.has(nb) and tgtq.has(nb):
-					var qs: Quaternion = srcq[nb]
-					var qm: Quaternion = tgtq[nb]
-					for kk in a.track_get_key_count(t):
-						var k: Quaternion = a.track_get_key_value(t, kk)
-						a.track_set_key_value(t, kk, qm.inverse() * qs * k * qs.inverse() * qm)
 				a.track_set_path(t, NodePath(skel_rel + ":" + bones[nb]))
 			# only running and idle repeat; death, jump and slide play once
 			a.loop_mode = Animation.LOOP_LINEAR if (key == "run" or key == "idle") else Animation.LOOP_NONE
