@@ -93,7 +93,7 @@ var custom_model: Node3D = null
 var anim: AnimationPlayer = null
 
 var cam: Camera3D
-var cam_pos := Vector3(0, 5.5, 6.5)
+var cam_pos := Vector3(0, 4.2, 4.6)
 var cam_look := Vector3(0, 1.0, -9)
 
 var score_label: Label
@@ -350,10 +350,26 @@ func _setup_rig(model: Node3D) -> void:
 	# this rig is 0.74 units tall in its file (measured), so scale it to the player height
 	model.scale = Vector3.ONE * (PLAYER_HEIGHT / 0.74)
 	model.position = Vector3.ZERO
+	_matte(model)
 	skel = _find_skeleton(model)
 	if skel != null:
 		for nm in ["Spine", "LeftArm", "RightArm", "LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg"]:
 			bone_ids[nm] = skel.find_bone("mixamorig:" + nm)
+
+
+# Removes the shiny sky-reflection look: fully rough, non-metal surfaces
+func _matte(n: Node) -> void:
+	if n is MeshInstance3D and n.mesh != null:
+		for si in n.mesh.get_surface_count():
+			var m = n.get_active_material(si)
+			if m is BaseMaterial3D:
+				var d: BaseMaterial3D = m.duplicate()
+				d.roughness = 1.0
+				d.metallic = 0.0
+				d.metallic_specular = 0.0
+				n.set_surface_override_material(si, d)
+	for c in n.get_children():
+		_matte(c)
 
 
 func _find_skeleton(n: Node) -> Skeleton3D:
@@ -1129,7 +1145,7 @@ func _animate_player(dt: float) -> void:
 
 func _update_camera(dt: float) -> void:
 	var k: float = 1.0 - exp(-8.0 * dt)
-	var target := Vector3(px * 0.5, 5.5 + py * 0.12, 6.5)
+	var target := Vector3(px * 0.5, 4.2 + py * 0.12, 4.6)
 	cam_pos = cam_pos.lerp(target, k)
 	cam_look = cam_look.lerp(Vector3(px * 0.4, 1.0 + py * 0.08, -9.0), k)
 	var off := Vector3.ZERO
