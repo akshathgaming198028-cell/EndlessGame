@@ -17,8 +17,9 @@ const MAP_PATH := "res://assets/map.glb"
 const MAP_SCALE := 0.4      # the open track between the bush walls is 18 model units wide = 3 lanes
 # street measured on the model, in model units (before MAP_SCALE)
 const MAP_STREET_CX := 53.0    # centre of the open track (between the bush walls) across its width
-const MAP_STREET_Z0 := -895.6  # start of street along its length
-const MAP_STREET_Z1 := 0.4     # end of street along its length
+const MAP_STREET_Z0 := -950.0  # start of the real track (buildings and bushes present) along its length
+const MAP_STREET_Z1 := -40.0   # end of the real track (the last 40 units have almost nothing)
+const MAP_WIDTH_SCALE := 1.5   # widens the map sideways so the lanes have room between the walls
 const MAP_HEIGHT_SCALE := 1.6  # makes bushes, trains and buildings taller so they read at game size
 const MAP_TILES := 3           # copies laid end to end (each is ~358 units long)
 const CHUNK_LEN := 30.0
@@ -612,9 +613,9 @@ func _make_map() -> void:
 		add_child(tile)
 		var inst: Node3D = map_scene.instantiate()
 		inst.rotation_degrees.y = -90.0
-		inst.scale = Vector3(MAP_SCALE, MAP_SCALE * MAP_HEIGHT_SCALE, MAP_SCALE)
+		inst.scale = Vector3(MAP_SCALE, MAP_SCALE * MAP_HEIGHT_SCALE, MAP_SCALE * MAP_WIDTH_SCALE)
 		# street centre goes to x=0 (lanes), street end goes to z=0, street surface stays at y=0
-		inst.position = Vector3(-MAP_STREET_CX * MAP_SCALE, 0.0, -MAP_STREET_Z1 * MAP_SCALE)
+		inst.position = Vector3(-MAP_STREET_CX * MAP_SCALE * MAP_WIDTH_SCALE, 0.0, -MAP_STREET_Z1 * MAP_SCALE)
 		tile.add_child(inst)
 		_prepare_map_meshes(inst)
 		tile.position.z = -i * map_period
