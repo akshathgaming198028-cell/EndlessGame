@@ -98,6 +98,8 @@ var cam_look := Vector3(0, 1.0, -9)
 
 var score_label: Label
 var msg_label: Label
+var pause_btn: Button
+var paused := false
 var sfx_coin: AudioStreamPlayer
 var sfx_jump: AudioStreamPlayer
 var sfx_hit: AudioStreamPlayer
@@ -261,12 +263,12 @@ func _make_environment() -> void:
 		pm.ground_bottom_color = Color("a9cdea")
 		sky.sky_material = pm
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_color = Color("c9d8ff")
-	env.ambient_light_energy = 0.75
+	env.ambient_light_energy = 1.0
 	env.fog_enabled = true
 	env.fog_light_color = Color("cfe8ff")
-	env.fog_density = 0.003
+	env.fog_density = 0.0015
 	env.fog_sky_affect = 0.0
 	var we := WorldEnvironment.new()
 	we.environment = env
@@ -410,7 +412,11 @@ func _load_anims(model: Node3D) -> void:
 					continue
 				# keep the character in place: drop root movement from the hips
 				if a.track_get_type(t) == Animation.TYPE_ROTATION_3D and _norm(bone) == "mixamorighips":
-					a.remove_track(t)
+					var q0: Quaternion = a.track_get_key_value(t, 0)
+					for kk in a.track_get_key_count(t):
+						var q: Quaternion = a.track_get_key_value(t, kk)
+						a.track_set_key_value(t, kk, q * q0.inverse())
+					a.track_set_path(t, NodePath(skel_rel + ":" + bones[_norm(bone)]))
 					continue
 				if a.track_get_type(t) == Animation.TYPE_POSITION_3D and _norm(bone) == "mixamorighips":
 					a.remove_track(t)
@@ -425,7 +431,14 @@ func _load_anims(model: Node3D) -> void:
 	var ap := AnimationPlayer.new()
 	model.add_child(ap)
 	ap.add_animation_library("", lib)
+	ap.animation_finished.connect(_on_anim_finished)
 	anim = ap
+
+
+func _on_anim_finished(anim_name: StringName) -> void:
+	# death plays once and holds its last frame
+	if String(anim_name) == "die" and anim != null:
+		anim.pause()
 
 
 func _norm(s: String) -> String:
@@ -529,7 +542,7 @@ func _anim_speed(keyword: String, name: String) -> float:
 	if length <= 0.0:
 		return 1.0
 	if keyword == "slide":
-		return length / SLIDE_TIME
+		return clampf(length / SLIDE_TIME, 0.5, 1.5)
 	if keyword == "die":
 		return length / 1.2
 	return 1.0
@@ -556,11 +569,22 @@ func _make_ui() -> void:
 	score_label.anchor_right = 1.0
 	score_label.offset_top = 40.0
 	score_label.offset_bottom = 190.0
+	score_label.offset_left = 0.0
+	score_label.offset_right = -30.0
+	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	msg_label = _label(layer, 46)
 	msg_label.anchor_right = 1.0
 	msg_label.anchor_bottom = 1.0
 	msg_label.offset_left = 30.0
 	msg_label.offset_right = -30.0
+	pause_btn = Button.new()
+	pause_btn.text = "II"
+	pause_btn.add_theme_font_size_override("font_size", 40)
+	pause_btn.position = Vector2(24, 40)
+	pause_btn.size = Vector2(96, 96)
+	pause_btn.visible = false
+	pause_btn.pressed.connect(_toggle_pause)
+	layer.add_child(pause_btn)
 
 
 # ---------------------------------------------------------------- audio
@@ -910,12 +934,22 @@ func _score() -> int:
 
 func _set_state(s: State) -> void:
 	state = s
+	if pause_btn != null:
+		pause_btn.visible = s == State.PLAY
 	if s == State.MENU:
 		msg_label.text = "TAP TO RUN\n\nswipe left / right: change lane\nswipe up: jump\nswipe down: slide"
 	elif s == State.PLAY:
 		msg_label.text = ""
 	else:
 		msg_label.text = "CRASH!\n%d points\nBest %d\n\ntap to run again" % [_score(), best]
+
+
+func _toggle_pause() -> void:
+	if state != State.PLAY:
+		return
+	paused = not paused
+	pause_btn.text = "GO" if paused else "II"
+	msg_label.text = "PAUSED\n\ntap GO to resume" if paused else ""
 
 
 func _start_game() -> void:
@@ -932,6 +966,8 @@ func _start_game() -> void:
 	want_slide = false
 	jump_buf = 0.0
 	run_t = 0.0
+	paused = false
+	pause_btn.text = "II"
 	player.position = Vector3.ZERO
 	player.rotation = Vector3.ZERO
 	body.rotation = Vector3.ZERO
@@ -1012,7 +1048,7 @@ func _input(e: InputEvent) -> void:
 			swiping = false
 			swipe_used = false
 	elif e is InputEventScreenDrag:
-		if swiping and not swipe_used and state == State.PLAY:
+		if swiping and not swipe_used and state == State.PLAY and not paused:
 			var d: Vector2 = e.position - swipe_start
 			if d.length() >= SWIPE_PX:
 				swipe_used = true
@@ -1023,7 +1059,7 @@ func _input(e: InputEvent) -> void:
 				else:
 					_slide()
 	elif e is InputEventKey:
-		if e.pressed and not e.echo:
+		if e.pressed and not e.echo and not paused:
 			if e.keycode == KEY_LEFT or e.keycode == KEY_A:
 				_move_lane(-1)
 			elif e.keycode == KEY_RIGHT or e.keycode == KEY_D:
@@ -1039,6 +1075,8 @@ func _input(e: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	var dt: float = minf(delta, 0.05)
+	if paused:
+		return
 	if state == State.PLAY:
 		_update_play(dt)
 	elif state == State.DEAD:
