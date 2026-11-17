@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 env:
-  GODOT_VERSION: "4.4"
+  GODOT_VERSION: "4.3"
 
 jobs:
   build:
@@ -43,7 +43,7 @@ jobs:
           set -e
           keytool -genkeypair -keystore "$HOME/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           mkdir -p ~/.config/godot
-          cat > ~/.config/godot/editor_settings-4.4.tres <<EOF
+          cat > ~/.config/godot/editor_settings-4.3.tres <<EOF
           [gd_resource type="EditorSettings" format=3]
 
           [resource]
