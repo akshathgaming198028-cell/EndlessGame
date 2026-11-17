@@ -999,6 +999,11 @@ func _update_ui() -> void:
 	var t := ""
 	if state == State.PLAY:
 		t = "%d\nCOINS  %d" % [_score(), coins]
+		if map_tiles.size() > 0:
+			var zs := ""
+			for tile in map_tiles:
+				zs += " %.0f" % tile.position.z
+			t += "\nmap z:" + zs + "  cam z: %.0f" % cam.position.z
 	elif state == State.MENU:
 		t = "BEST  %d" % best
 	if score_label.text != t:
