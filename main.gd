@@ -302,6 +302,7 @@ func _make_player() -> void:
 			custom_model = ps.instantiate()
 			body.add_child(custom_model)
 			anim = _find_anim(custom_model)
+			_setup_rig(custom_model)
 			return
 
 	# procedural low-poly runner (placeholder until you bring your own model)
@@ -335,6 +336,98 @@ func _make_player() -> void:
 		else:
 			leg_r = leg
 			arm_r = arm
+
+
+# --- Character rig (Mixamo skeleton, no animations in the file, so we pose the bones in code) ---
+const PLAYER_HEIGHT := 1.8
+var skel: Skeleton3D = null
+var bone_ids := {}
+
+
+func _setup_rig(model: Node3D) -> void:
+	# Mixamo models face +Z and come in tiny units: turn to face -Z (our run direction) and fit to player height
+	model.rotation_degrees.y = 180.0
+	var box := _model_box(model, body)
+	if box.size.y > 0.0:
+		var k := PLAYER_HEIGHT / box.size.y
+		var c := box.get_center()
+		model.scale = Vector3.ONE * k
+		model.position = Vector3(-k * c.x, -k * box.position.y, -k * c.z)
+	skel = _find_skeleton(model)
+	if skel != null:
+		for nm in ["Spine", "LeftArm", "RightArm", "LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg"]:
+			bone_ids[nm] = skel.find_bone("mixamorig:" + nm)
+
+
+func _find_skeleton(n: Node) -> Skeleton3D:
+	if n is Skeleton3D:
+		return n
+	for c in n.get_children():
+		var r := _find_skeleton(c)
+		if r != null:
+			return r
+	return null
+
+
+func _bone_q(nm: String, target: Quaternion, k: float) -> void:
+	var id: int = bone_ids.get(nm, -1)
+	if id < 0:
+		return
+	skel.set_bone_pose_rotation(id, skel.get_bone_pose_rotation(id).slerp(target, k))
+
+
+func _animate_rig(dt: float) -> void:
+	var k := 1.0 - exp(-14.0 * dt)
+	var sw := sin(run_t)
+	var spine := 0.0
+	var l_thigh := 0.0
+	var r_thigh := 0.0
+	var l_knee := 0.0
+	var r_knee := 0.0
+	var l_arm := Quaternion()
+	var r_arm := Quaternion()
+	if state == State.DEAD:
+		spine = 0.9
+		l_thigh = 0.2
+		r_thigh = -0.2
+		l_arm = Quaternion(Vector3(0, 0, 1), 2.0)
+		r_arm = Quaternion(Vector3(0, 0, 1), -2.0)
+	elif state == State.MENU:
+		var br := sin(Time.get_ticks_msec() * 0.003) * 0.05
+		spine = br
+		l_arm = Quaternion(Vector3.UP, 0.1 + br)
+		r_arm = Quaternion(Vector3.UP, -0.1 - br)
+	elif slide_t > 0.0:
+		spine = -0.9
+		l_thigh = -1.2
+		r_thigh = -1.2
+		l_knee = 1.3
+		r_knee = 1.3
+		l_arm = Quaternion(Vector3.UP, 0.4)
+		r_arm = Quaternion(Vector3.UP, -0.4)
+	elif not on_ground:
+		l_thigh = -0.6
+		r_thigh = 0.4
+		l_knee = 0.9
+		r_knee = 0.3
+		l_arm = Quaternion(Vector3(0, 0, 1), 2.0)
+		r_arm = Quaternion(Vector3(0, 0, 1), -2.0)
+	else:
+		l_thigh = sw * 0.9
+		r_thigh = -sw * 0.9
+		l_knee = maxf(0.0, -sw) * 1.1
+		r_knee = maxf(0.0, sw) * 1.1
+		var arm := -sw * 0.7
+		l_arm = Quaternion(Vector3.UP, arm)
+		r_arm = Quaternion(Vector3.UP, arm)
+		spine = 0.05
+	_bone_q("Spine", Quaternion(Vector3.RIGHT, spine), k)
+	_bone_q("LeftUpLeg", Quaternion(Vector3.RIGHT, l_thigh), k)
+	_bone_q("RightUpLeg", Quaternion(Vector3.RIGHT, r_thigh), k)
+	_bone_q("LeftLeg", Quaternion(Vector3.RIGHT, -l_knee), k)
+	_bone_q("RightLeg", Quaternion(Vector3.RIGHT, -r_knee), k)
+	_bone_q("LeftArm", l_arm, k)
+	_bone_q("RightArm", r_arm, k)
 
 
 func _find_anim(n: Node) -> AnimationPlayer:
@@ -975,6 +1068,9 @@ func _animate_player(dt: float) -> void:
 	blob.scale = Vector3(bs, 1.0, bs * 0.8)
 	blob.visible = state != State.DEAD or py > 0.0
 
+	if custom_model != null and skel != null:
+		_animate_rig(dt)
+		return
 	if custom_model != null:
 		var kw := "run"
 		if state == State.DEAD:
