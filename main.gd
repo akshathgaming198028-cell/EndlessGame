@@ -303,6 +303,7 @@ func _make_player() -> void:
 			body.add_child(custom_model)
 			anim = _find_anim(custom_model)
 			_setup_rig(custom_model)
+			_load_anims(custom_model)
 			return
 
 	# procedural low-poly runner (placeholder until you bring your own model)
@@ -340,6 +341,14 @@ func _make_player() -> void:
 
 # --- Character rig (Mixamo skeleton, no animations in the file, so we pose the bones in code) ---
 const PLAYER_HEIGHT := 1.8
+# Mixamo animation files in assets/anims/ (see README). Keys are the names the game plays.
+const ANIM_FILES := {
+	"run": "Running.fbx",
+	"jump": "Jump.fbx",
+	"idle": "Idle.fbx",
+	"die": "Zombie Death.fbx",
+	"slide": "Falling To Roll.fbx",
+}
 var skel: Skeleton3D = null
 var bone_ids := {}
 
@@ -370,6 +379,54 @@ func _matte(n: Node) -> void:
 				n.set_surface_override_material(si, d)
 	for c in n.get_children():
 		_matte(c)
+
+
+# Loads each Mixamo animation file and plays it on our character's skeleton.
+func _load_anims(model: Node3D) -> void:
+	if skel == null:
+		return
+	# map simplified bone names ("mixamorig:Hips" and "mixamorig_Hips" both become "mixamorighips") to the real ones
+	var bones := {}
+	for i in skel.get_bone_count():
+		bones[_norm(skel.get_bone_name(i))] = skel.get_bone_name(i)
+	var skel_rel := str(model.get_path_to(skel))
+	var lib := AnimationLibrary.new()
+	for key in ANIM_FILES:
+		var path: String = "res://assets/anims/" + ANIM_FILES[key]
+		if not ResourceLoader.exists(path):
+			continue
+		var ps := load(path) as PackedScene
+		if ps == null:
+			continue
+		var src := ps.instantiate()
+		var sp := _find_anim(src)
+		if sp != null and sp.get_animation_list().size() > 0:
+			var a: Animation = sp.get_animation(sp.get_animation_list()[0]).duplicate()
+			for t in range(a.get_track_count() - 1, -1, -1):
+				var np := a.track_get_path(t)
+				var bone := np.get_concatenated_subnames()
+				if bone == "" or not bones.has(_norm(bone)):
+					a.remove_track(t)
+					continue
+				# keep the character in place: drop root movement from the hips
+				if a.track_get_type(t) == Animation.TYPE_POSITION_3D and _norm(bone) == "mixamorighips":
+					a.remove_track(t)
+					continue
+				a.track_set_path(t, NodePath(skel_rel + ":" + bones[_norm(bone)]))
+			if key == "run" or key == "idle":
+				a.loop_mode = Animation.LOOP_LINEAR
+			lib.add_animation(key, a)
+		src.queue_free()
+	if lib.get_animation_list().size() == 0:
+		return
+	var ap := AnimationPlayer.new()
+	model.add_child(ap)
+	ap.add_animation_library("", lib)
+	anim = ap
+
+
+func _norm(s: String) -> String:
+	return s.replace(":", "").replace("_", "").to_lower()
 
 
 func _find_skeleton(n: Node) -> Skeleton3D:
@@ -1081,9 +1138,6 @@ func _animate_player(dt: float) -> void:
 	blob.scale = Vector3(bs, 1.0, bs * 0.8)
 	blob.visible = state != State.DEAD or py > 0.0
 
-	if custom_model != null and skel != null:
-		_animate_rig(dt)
-		return
 	if custom_model != null:
 		var kw := "run"
 		if state == State.DEAD:
