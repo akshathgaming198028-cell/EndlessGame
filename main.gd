@@ -347,12 +347,9 @@ var bone_ids := {}
 func _setup_rig(model: Node3D) -> void:
 	# Mixamo models face +Z and come in tiny units: turn to face -Z (our run direction) and fit to player height
 	model.rotation_degrees.y = 180.0
-	var box := _model_box(model, body)
-	if box.size.y > 0.0:
-		var k := PLAYER_HEIGHT / box.size.y
-		var c := box.get_center()
-		model.scale = Vector3.ONE * k
-		model.position = Vector3(-k * c.x, -k * box.position.y, -k * c.z)
+	# this rig is 0.74 units tall in its file (measured), so scale it to the player height
+	model.scale = Vector3.ONE * (PLAYER_HEIGHT / 0.74)
+	model.position = Vector3.ZERO
 	skel = _find_skeleton(model)
 	if skel != null:
 		for nm in ["Spine", "LeftArm", "RightArm", "LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg"]:
