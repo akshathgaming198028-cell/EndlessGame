@@ -357,7 +357,7 @@ func _setup_rig(model: Node3D) -> void:
 	# Mixamo models face +Z and come in tiny units: turn to face -Z (our run direction) and fit to player height
 	model.rotation_degrees.y = 180.0
 	# this rig is 0.74 units tall in its file (measured), so scale it to the player height
-	model.scale = Vector3.ONE * (PLAYER_HEIGHT / 0.74)
+	model.scale = Vector3.ONE * (PLAYER_HEIGHT / 0.74) * 1.3
 	model.position = Vector3.ZERO
 	_matte(model)
 	skel = _find_skeleton(model)
@@ -409,12 +409,15 @@ func _load_anims(model: Node3D) -> void:
 					a.remove_track(t)
 					continue
 				# keep the character in place: drop root movement from the hips
+				if a.track_get_type(t) == Animation.TYPE_ROTATION_3D and _norm(bone) == "mixamorighips":
+					a.remove_track(t)
+					continue
 				if a.track_get_type(t) == Animation.TYPE_POSITION_3D and _norm(bone) == "mixamorighips":
 					a.remove_track(t)
 					continue
 				a.track_set_path(t, NodePath(skel_rel + ":" + bones[_norm(bone)]))
-			if key == "run" or key == "idle":
-				a.loop_mode = Animation.LOOP_LINEAR
+			# only running and idle repeat; death, jump and slide play once
+			a.loop_mode = Animation.LOOP_LINEAR if (key == "run" or key == "idle") else Animation.LOOP_NONE
 			lib.add_animation(key, a)
 		src.queue_free()
 	if lib.get_animation_list().size() == 0:
@@ -516,10 +519,20 @@ func _play_anim(keyword: String) -> void:
 	for a in anim.get_animation_list():
 		if keyword in String(a).to_lower():
 			if anim.current_animation != String(a):
-				if keyword == "run" or keyword == "idle":
-					anim.get_animation(a).loop_mode = Animation.LOOP_LINEAR
-				anim.play(a)
+				anim.play(String(a))
+			anim.speed_scale = _anim_speed(keyword, String(a))
 			return
+
+
+func _anim_speed(keyword: String, name: String) -> float:
+	var length := anim.get_animation(name).length
+	if length <= 0.0:
+		return 1.0
+	if keyword == "slide":
+		return length / SLIDE_TIME
+	if keyword == "die":
+		return length / 1.2
+	return 1.0
 
 
 func _label(parent: Node, size_px: int) -> Label:
