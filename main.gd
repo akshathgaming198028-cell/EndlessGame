@@ -97,6 +97,8 @@ var cam_pos := Vector3(0, 4.2, 4.6)
 var cam_look := Vector3(0, 1.0, -9)
 
 var score_label: Label
+var exit_dialog: ConfirmationDialog
+var fps_label: Label
 var msg_label: Label
 var pause_btn: Button
 var paused := false
@@ -132,8 +134,22 @@ var building_colors := [Color("e7806b"), Color("f2c14e"), Color("7fb6d9"), Color
 var leaf_colors := [Color("3f9a4f"), Color("55b25e"), Color("2f8645")]
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		if exit_dialog == null:
+			get_tree().quit()
+		elif exit_dialog.visible:
+			exit_dialog.hide()
+		elif state == State.PLAY and not paused:
+			_toggle_pause()
+		else:
+			exit_dialog.popup_centered()
+
+
 func _ready() -> void:
 	rng.randomize()
+	get_tree().set_auto_accept_quit(false)
+	Engine.max_fps = 60
 	DisplayServer.screen_set_keep_on(true)
 	_load_best()
 	_make_meshes()
@@ -607,6 +623,20 @@ func _label(parent: Node, size_px: int) -> Label:
 
 
 func _make_ui() -> void:
+	exit_dialog = ConfirmationDialog.new()
+	exit_dialog.title = "Heist Escape"
+	exit_dialog.dialog_text = "Exit the game?"
+	exit_dialog.ok_button_text = "Exit"
+	exit_dialog.confirmed.connect(func() -> void: get_tree().quit())
+	add_child(exit_dialog)
+	fps_label = Label.new()
+	fps_label.position = Vector2(20, 1230)
+	fps_label.add_theme_font_size_override("font_size", 26)
+	fps_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.7))
+	fps_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	fps_label.add_theme_constant_override("outline_size", 6)
+	fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(fps_label)
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	score_label = _label(layer, 54)
@@ -1384,10 +1414,10 @@ func _update_camera(dt: float) -> void:
 	if shake > 0.0:
 		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.4
 		shake = maxf(0.0, shake - dt * 2.0)
-	if state == State.PLAY and not counting and on_ground:
-		off.y += sin(run_t * 2.0) * 0.02
-		off.x += sin(run_t * 1.3) * 0.02
-		off.z += sin(run_t * 2.7) * 0.01
+	if state == State.PLAY and not counting:
+		off.y += sin(run_t * 2.0) * 0.05
+		off.x += sin(run_t * 1.3) * 0.035
+		off.z += sin(run_t * 2.7) * 0.015
 	cam.position = cam_pos + off
 	cam.look_at(cam_look)
 	var t_fov: float = 62.0
@@ -1397,6 +1427,7 @@ func _update_camera(dt: float) -> void:
 
 
 func _update_ui() -> void:
+	fps_label.text = "%d fps  %d nodes" % [Engine.get_frames_per_second(), Performance.get_monitor(Performance.OBJECT_NODE_COUNT)]
 	var t := ""
 	if state == State.PLAY:
 		t = "%d\nCOINS  %d" % [_score(), coins]
