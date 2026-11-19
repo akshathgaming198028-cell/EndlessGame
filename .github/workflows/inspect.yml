@@ -24,7 +24,7 @@ jobs:
       - name: Import and inspect
         run: |
           godot --headless --path . --import || true
-          godot --headless --path . --script res://ci/inspect_rig.gd 2>&1 | grep -v "^$" | tee rig.txt
+          godot --headless --path . --script res://ci/check_upright.gd 2>&1 | grep -v "^$" | tee rig.txt
       - uses: actions/upload-artifact@v4
         with:
           name: rig-report
