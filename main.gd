@@ -1046,6 +1046,11 @@ func _start_game() -> void:
 	run_t = 0.0
 	paused = false
 	die_done = false
+	if anim != null:
+		anim.stop()
+		anim.speed_scale = 1.0
+	if custom_model != null:
+		custom_model.quaternion = Quaternion(Vector3.UP, PI)
 	pause_btn.text = "II"
 	player.position = Vector3.ZERO
 	player.rotation = Vector3.ZERO
