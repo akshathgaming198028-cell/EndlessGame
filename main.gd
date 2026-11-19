@@ -430,20 +430,20 @@ func _load_anims(model: Node3D) -> void:
 	anim = ap
 
 
-# Straightens the upper body: measures how far the spine leans in the animation and rotates it back to vertical
+# Stands the whole character up: measures the hips-to-head lean in the animation and tilts the model back to vertical
 func _upright_body() -> void:
-	if skel == null:
+	if skel == null or custom_model == null:
 		return
-	var sb := skel.find_bone("mixamorig:Spine")
-	var hb := skel.find_bone("mixamorig:Head")
-	if sb < 0 or hb < 0:
+	var hb := skel.find_bone("mixamorig:Hips")
+	var hd := skel.find_bone("mixamorig:Head")
+	if hb < 0 or hd < 0:
 		return
 	skel.clear_bones_global_pose_override()
-	var sp := skel.get_bone_global_pose(sb)
-	var hp := skel.get_bone_global_pose(hb)
-	var v := hp.origin - sp.origin
+	var hp := skel.get_bone_global_pose(hb).origin
+	var hdp := skel.get_bone_global_pose(hd).origin
+	var v := hdp - hp
 	var a := -atan2(v.z, v.y)
-	skel.set_bone_global_pose_override(sb, Transform3D(Basis(Vector3.RIGHT, a) * sp.basis, sp.origin), 1.0, true)
+	custom_model.rotation = Vector3(a, PI, 0.0)
 
 
 func _on_anim_finished(anim_name: StringName) -> void:
@@ -1228,7 +1228,7 @@ func _animate_player(dt: float) -> void:
 		if kw == "run" or kw == "idle" or kw == "jump":
 			_upright_body()
 		else:
-			skel.clear_bones_global_pose_override()
+			custom_model.rotation = Vector3(0.0, PI, 0.0)
 		return
 
 	var k: float = 1.0 - exp(-18.0 * dt)

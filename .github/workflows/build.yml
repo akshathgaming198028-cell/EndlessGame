@@ -41,7 +41,8 @@ jobs:
       - name: Configure Godot for Android
         run: |
           set -e
-          keytool -genkeypair -keystore "$HOME/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          # fixed signing key (committed in ci/) so every new build installs over the last one
+          cp ci/debug.keystore "$HOME/debug.keystore"
           mkdir -p ~/.config/godot
           cat > ~/.config/godot/editor_settings-4.3.tres <<EOF
           [gd_resource type="EditorSettings" format=3]
@@ -62,6 +63,13 @@ jobs:
           godot --headless --path . --export-debug "Android" build/game.apk
           ls -la build
           test -f build/game.apk
+
+      - name: Keep only the newest 3 releases
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list --limit 200 --json tagName -q '.[3:][].tagName' | while read -r t; do gh release delete "$t" --cleanup-tag -y; done || true
 
       - name: Publish APK to Releases
         uses: softprops/action-gh-release@v2
