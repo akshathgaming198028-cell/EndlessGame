@@ -410,7 +410,7 @@ func _load_anims(model: Node3D) -> void:
 		var src := ps.instantiate()
 		var sp := _find_anim(src)
 		if sp != null and sp.get_animation_list().size() > 0:
-			var a: Animation = _retarget(sp.get_animation(sp.get_animation_list()[0]), _find_skeleton(src), skel, skel_rel)
+			var a: Animation = sp.get_animation(sp.get_animation_list()[0]).duplicate()
 			for t in range(a.get_track_count() - 1, -1, -1):
 				var np := a.track_get_path(t)
 				var bone := np.get_concatenated_subnames()
@@ -420,6 +420,10 @@ func _load_anims(model: Node3D) -> void:
 				var nb := _norm(bone)
 				# keep the character in place: drop root movement from the hips
 				if a.track_get_type(t) == Animation.TYPE_POSITION_3D and nb == "mixamorighips":
+					a.remove_track(t)
+					continue
+				# the hips' own turn is what tilted him: drop it so he stands upright, as in the build where he stood
+				if a.track_get_type(t) == Animation.TYPE_ROTATION_3D and nb == "mixamorighips":
 					a.remove_track(t)
 					continue
 				a.track_set_path(t, NodePath(skel_rel + ":" + bones[nb]))
