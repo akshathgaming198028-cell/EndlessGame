@@ -114,6 +114,7 @@ const EXIT_RECT := Rect2(110, 600, 240, 110)
 const CANCEL_RECT := Rect2(370, 600, 240, 110)
 var die_done := false
 var sfx_coin: AudioStreamPlayer
+var sfx_slide: AudioStreamPlayer
 var sfx_jump: AudioStreamPlayer
 var sfx_hit: AudioStreamPlayer
 var music: AudioStreamPlayer
@@ -753,6 +754,7 @@ func _sfx(base: String, fallback: AudioStream) -> AudioStreamPlayer:
 func _make_audio() -> void:
 	sfx_coin = _sfx("coin", _tone(988.0, 0.12, 0.5, 700.0))
 	sfx_jump = _sfx("jump", _tone(260.0, 0.18, 0.5, 300.0))
+	sfx_slide = _sfx("slide", _tone(180.0, 0.2, 0.3, -90.0))
 	sfx_hit = _sfx("hit", _tone(120.0, 0.45, 0.8, -60.0, 0.5))
 	sfx_coin.volume_db = -6.0
 	sfx_jump.volume_db = -8.0
@@ -1077,6 +1079,9 @@ func _toggle_pause() -> void:
 	if anim != null:
 		anim.speed_scale = 0.0 if paused else 1.0
 	msg_label.text = "PAUSED\n\ntap GO to resume" if paused else ""
+	if not paused:
+		counting = true
+		count_t = 3.0
 
 
 func _start_game() -> void:
@@ -1106,8 +1111,6 @@ func _start_game() -> void:
 	body.rotation = Vector3.ZERO
 	body.position = Vector3.ZERO
 	_set_state(State.PLAY)
-	counting = true
-	count_t = 3.0
 
 
 func _die() -> void:
@@ -1167,6 +1170,7 @@ func _slide() -> void:
 		return
 	if on_ground:
 		slide_t = SLIDE_TIME
+		sfx_slide.play()
 	else:
 		vy = -40.0
 		want_slide = true
