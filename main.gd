@@ -404,7 +404,7 @@ func _load_anims(model: Node3D) -> void:
 		var src := ps.instantiate()
 		var sp := _find_anim(src)
 		if sp != null and sp.get_animation_list().size() > 0:
-			var a: Animation = sp.get_animation(sp.get_animation_list()[0]).duplicate()
+			var a: Animation = _retarget(sp.get_animation(sp.get_animation_list()[0]), _find_skeleton(src), skel, skel_rel)
 			for t in range(a.get_track_count() - 1, -1, -1):
 				var np := a.track_get_path(t)
 				var bone := np.get_concatenated_subnames()
@@ -430,20 +430,40 @@ func _load_anims(model: Node3D) -> void:
 	anim = ap
 
 
-# Stands the whole character up: measures the hips-to-head lean in the animation and tilts the model back to vertical
-func _upright_body() -> void:
-	if skel == null or custom_model == null:
-		return
-	var hb := skel.find_bone("mixamorig:Hips")
-	var hd := skel.find_bone("mixamorig:Head")
-	if hb < 0 or hd < 0:
-		return
-	skel.clear_bones_global_pose_override()
-	var hp := skel.get_bone_global_pose(hb).origin
-	var hdp := skel.get_bone_global_pose(hd).origin
-	var v := hdp - hp
-	var a := -atan2(v.z, v.y)
-	custom_model.rotation = Vector3(a, PI, 0.0)
+# Converts an animation's rotations from its own bone rest poses to ours.
+# Each bone's rest differs by a fixed turn (the player's bones sit 90 degrees round X), so
+# the key becomes rest_ours^-1 * rest_theirs * key, which keeps every bone's local motion the same.
+func _retarget(an: Animation, ssk: Skeleton3D, psk: Skeleton3D, skel_rel: String) -> Animation:
+	var out := an.duplicate() as Animation
+	if ssk == null or psk == null:
+		return out
+	var srcr := {}
+	for i in ssk.get_bone_count():
+		srcr[_key(ssk.get_bone_name(i))] = ssk.get_bone_rest(i).basis.get_rotation_quaternion()
+	var tgtr := {}
+	var tgtname := {}
+	for i in psk.get_bone_count():
+		var k := _key(psk.get_bone_name(i))
+		tgtr[k] = psk.get_bone_rest(i).basis.get_rotation_quaternion()
+		tgtname[k] = psk.get_bone_name(i)
+	for t in range(out.get_track_count() - 1, -1, -1):
+		var k := _key(out.track_get_path(t).get_concatenated_subnames())
+		if not srcr.has(k) or not tgtr.has(k):
+			out.remove_track(t)
+			continue
+		if out.track_get_type(t) == Animation.TYPE_ROTATION_3D:
+			var qm: Quaternion = tgtr[k].inverse() * srcr[k]
+			for kk in out.track_get_key_count(t):
+				out.track_set_key_value(t, kk, qm * out.track_get_key_value(t, kk))
+		elif out.track_get_type(t) != Animation.TYPE_ROTATION_3D:
+			out.remove_track(t)
+			continue
+		out.track_set_path(t, NodePath(skel_rel + ":" + tgtname[k]))
+	return out
+
+
+func _key(n: String) -> String:
+	return n.replace(":", "").replace("_", "").to_lower()
 
 
 func _on_anim_finished(anim_name: StringName) -> void:
@@ -1225,10 +1245,6 @@ func _animate_player(dt: float) -> void:
 		if kw == "die" and die_done:
 			return
 		_play_anim(kw)
-		if kw == "run" or kw == "idle" or kw == "jump":
-			_upright_body()
-		else:
-			custom_model.rotation = Vector3(0.0, PI, 0.0)
 		return
 
 	var k: float = 1.0 - exp(-18.0 * dt)

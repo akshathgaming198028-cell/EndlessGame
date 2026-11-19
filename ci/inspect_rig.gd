@@ -11,6 +11,23 @@ func _init() -> void:
 		for i in range(4):
 			print("PLAYER bone ", i, " = ", psk.get_bone_name(i))
 	_dump_rest("PLAYER", psk)
+	# the same retarget the game uses, played on the player: prints the lean of the converted pose
+	var rinst: Node = (load("res://assets/anims/Running.fbx") as PackedScene).instantiate()
+	get_root().add_child(rinst)
+	var rap := _find_ap(rinst)
+	var rsk := _find_skel(rinst)
+	var ra := rap.get_animation(rap.get_animation_list()[0])
+	var conv := _retarget(ra, rsk, psk, str(pl.get_path_to(psk)))
+	var rlib := AnimationLibrary.new()
+	rlib.add_animation("run", conv)
+	var ap2 := AnimationPlayer.new()
+	pl.add_child(ap2)
+	ap2.add_animation_library("", rlib)
+	for tt in [0.0, 0.15, 0.3]:
+		ap2.play("run")
+		ap2.seek(tt, true)
+		_lean("RETARGETED-on-PLAYER run t=%.2f " % tt, psk)
+	print("RETARGETED tracks=", conv.get_track_count())
 	for f in ["Running.fbx", "Zombie Death.fbx", "Idle.fbx", "Jump.fbx", "Falling To Roll.fbx"]:
 		var inst: Node = (load("res://assets/anims/" + f) as PackedScene).instantiate()
 		get_root().add_child(inst)
@@ -39,6 +56,35 @@ func _bi(sk: Skeleton3D, nm: String) -> int:
 	if i < 0:
 		i = sk.find_bone("mixamorig_" + nm)
 	return i
+
+func _retarget(an: Animation, ssk: Skeleton3D, psk: Skeleton3D, skel_rel: String) -> Animation:
+	var out := an.duplicate() as Animation
+	var srcr := {}
+	for i in ssk.get_bone_count():
+		srcr[_key(ssk.get_bone_name(i))] = ssk.get_bone_rest(i).basis.get_rotation_quaternion()
+	var tgtr := {}
+	var tgtname := {}
+	for i in psk.get_bone_count():
+		var k := _key(psk.get_bone_name(i))
+		tgtr[k] = psk.get_bone_rest(i).basis.get_rotation_quaternion()
+		tgtname[k] = psk.get_bone_name(i)
+	for t in range(out.get_track_count() - 1, -1, -1):
+		var k := _key(out.track_get_path(t).get_concatenated_subnames())
+		if not srcr.has(k) or not tgtr.has(k):
+			out.remove_track(t)
+			continue
+		if out.track_get_type(t) == Animation.TYPE_ROTATION_3D:
+			var qm: Quaternion = tgtr[k].inverse() * srcr[k]
+			for kk in out.track_get_key_count(t):
+				out.track_set_key_value(t, kk, qm * out.track_get_key_value(t, kk))
+		else:
+			out.remove_track(t)
+			continue
+		out.track_set_path(t, NodePath(skel_rel + ":" + tgtname[k]))
+	return out
+
+func _key(n: String) -> String:
+	return n.replace(":", "").replace("_", "").to_lower()
 
 func _lean(label: String, sk: Skeleton3D) -> void:
 	var h := _bi(sk, "Hips")
