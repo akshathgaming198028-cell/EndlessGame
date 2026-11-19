@@ -430,6 +430,22 @@ func _load_anims(model: Node3D) -> void:
 	anim = ap
 
 
+# Straightens the upper body: measures how far the spine leans in the animation and rotates it back to vertical
+func _upright_body() -> void:
+	if skel == null:
+		return
+	var sb := skel.find_bone("mixamorig:Spine")
+	var hb := skel.find_bone("mixamorig:Head")
+	if sb < 0 or hb < 0:
+		return
+	skel.clear_bones_global_pose_override()
+	var sp := skel.get_bone_global_pose(sb)
+	var hp := skel.get_bone_global_pose(hb)
+	var v := hp.origin - sp.origin
+	var a := -atan2(v.z, v.y)
+	skel.set_bone_global_pose_override(sb, Transform3D(Basis(Vector3.RIGHT, a) * sp.basis, sp.origin), 1.0, true)
+
+
 func _on_anim_finished(anim_name: StringName) -> void:
 	# death plays once and holds its last frame
 	if String(anim_name) == "die" and anim != null:
@@ -580,7 +596,7 @@ func _make_ui() -> void:
 	pause_btn.position = Vector2(24, 40)
 	pause_btn.size = Vector2(96, 96)
 	pause_btn.visible = false
-	pause_btn.pressed.connect(_toggle_pause)
+	pause_btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(pause_btn)
 
 
@@ -1035,7 +1051,16 @@ func _slide() -> void:
 		want_slide = true
 
 
+func _in_pause_zone(p: Vector2) -> bool:
+	var r := Rect2(24, 40, 96, 96).grow(24.0)
+	var ratio := get_viewport().get_visible_rect().size / Vector2(DisplayServer.window_get_size())
+	return r.has_point(p) or r.has_point(p * ratio)
+
+
 func _input(e: InputEvent) -> void:
+	if e is InputEventScreenTouch and e.pressed and state == State.PLAY and _in_pause_zone(e.position):
+		_toggle_pause()
+		return
 	if e is InputEventScreenTouch:
 		if e.pressed:
 			swipe_start = e.position
@@ -1200,6 +1225,10 @@ func _animate_player(dt: float) -> void:
 		if kw == "die" and die_done:
 			return
 		_play_anim(kw)
+		if kw == "run" or kw == "idle" or kw == "jump":
+			_upright_body()
+		else:
+			skel.clear_bones_global_pose_override()
 		return
 
 	var k: float = 1.0 - exp(-18.0 * dt)
@@ -1249,8 +1278,8 @@ func _animate_player(dt: float) -> void:
 
 
 func _update_camera(dt: float) -> void:
-	var k: float = 1.0 - exp(-8.0 * dt)
-	var target := Vector3(px * 0.5, 4.2 + py * 0.12, 4.6)
+	var k: float = 1.0 - exp(-5.0 * dt)
+	var target := Vector3(px * 0.5, 4.2 + py * 0.06, 4.6)
 	cam_pos = cam_pos.lerp(target, k)
 	cam_look = cam_look.lerp(Vector3(px * 0.4, 1.0 + py * 0.08, -9.0), k)
 	var off := Vector3.ZERO
