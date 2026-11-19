@@ -458,7 +458,8 @@ func _retarget(an: Animation, ssk: Skeleton3D, psk: Skeleton3D, skel_rel: String
 			out.remove_track(t)
 			continue
 		if out.track_get_type(t) == Animation.TYPE_ROTATION_3D:
-			var qm: Quaternion = tgtr[k].inverse() * srcr[k]
+			# measured: copying the rotations as they are gives the correct pose on this rig
+			var qm := Quaternion()
 			for kk in out.track_get_key_count(t):
 				out.track_set_key_value(t, kk, qm * out.track_get_key_value(t, kk))
 		elif out.track_get_type(t) != Animation.TYPE_ROTATION_3D:
@@ -466,6 +467,22 @@ func _retarget(an: Animation, ssk: Skeleton3D, psk: Skeleton3D, skel_rel: String
 			continue
 		out.track_set_path(t, NodePath(skel_rel + ":" + tgtname[k]))
 	return out
+
+
+# Runs lean forward about 16 degrees; this turns the whole character back to upright, measured every frame
+func _upright_body() -> void:
+	if skel == null or custom_model == null:
+		return
+	var hb := skel.find_bone("mixamorig_Hips")
+	var hd := skel.find_bone("mixamorig_Head")
+	if hb < 0 or hd < 0:
+		hb = skel.find_bone("mixamorig:Hips")
+		hd = skel.find_bone("mixamorig:Head")
+	if hb < 0 or hd < 0:
+		return
+	var v := skel.get_bone_global_pose(hd).origin - skel.get_bone_global_pose(hb).origin
+	var a := atan2(v.z, v.y)
+	custom_model.quaternion = Quaternion(Vector3.RIGHT, a) * Quaternion(Vector3.UP, PI)
 
 
 func _key(n: String) -> String:
@@ -1304,6 +1321,10 @@ func _animate_player(dt: float) -> void:
 		if kw == "die" and die_done:
 			return
 		_play_anim(kw)
+		if kw == "run" or kw == "idle" or kw == "jump":
+			_upright_body()
+		else:
+			custom_model.quaternion = Quaternion(Vector3.UP, PI)
 		return
 
 	var k: float = 1.0 - exp(-18.0 * dt)
