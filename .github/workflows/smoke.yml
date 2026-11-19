@@ -1,0 +1,31 @@
+name: Smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: "4.3"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot
+        run: |
+          set -e
+          BASE=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
+          wget -q $BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          sudo mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
+      - name: Import and run the game for 60 frames
+        run: |
+          godot --headless --path . --import || true
+          godot --headless --path . --script res://ci/smoke.gd 2>&1 | tee smoke.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoke-log
+          path: smoke.txt
