@@ -469,22 +469,6 @@ func _retarget(an: Animation, ssk: Skeleton3D, psk: Skeleton3D, skel_rel: String
 	return out
 
 
-# Runs lean forward about 16 degrees; this turns the whole character back to upright, measured every frame
-func _upright_body() -> void:
-	if skel == null or custom_model == null:
-		return
-	var hb := skel.find_bone("mixamorig_Hips")
-	var hd := skel.find_bone("mixamorig_Head")
-	if hb < 0 or hd < 0:
-		hb = skel.find_bone("mixamorig:Hips")
-		hd = skel.find_bone("mixamorig:Head")
-	if hb < 0 or hd < 0:
-		return
-	var v := skel.get_bone_global_pose(hd).origin - skel.get_bone_global_pose(hb).origin
-	var a := atan2(v.z, v.y)
-	custom_model.quaternion = Quaternion(Vector3.RIGHT, a) * Quaternion(Vector3.UP, PI)
-
-
 func _key(n: String) -> String:
 	return n.replace(":", "").replace("_", "").to_lower()
 
@@ -654,9 +638,6 @@ func _sb(c: Color, radius: int) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = c
 	sb.set_corner_radius_all(radius)
-	sb.shadow_color = Color(0, 0, 0, 0.35)
-	sb.shadow_size = 8
-	sb.shadow_offset = Vector2(0, 6)
 	return sb
 
 
@@ -1321,10 +1302,7 @@ func _animate_player(dt: float) -> void:
 		if kw == "die" and die_done:
 			return
 		_play_anim(kw)
-		if kw == "run" or kw == "idle" or kw == "jump":
-			_upright_body()
-		else:
-			custom_model.quaternion = Quaternion(Vector3.UP, PI)
+		custom_model.quaternion = Quaternion(Vector3.UP, PI)
 		return
 
 	var k: float = 1.0 - exp(-18.0 * dt)
@@ -1382,8 +1360,6 @@ func _update_camera(dt: float) -> void:
 	if shake > 0.0:
 		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.4
 		shake = maxf(0.0, shake - dt * 2.0)
-	if state == State.PLAY and not counting and on_ground:
-		off.y += sin(run_t * 2.0) * 0.06
 	cam.position = cam_pos + off
 	cam.look_at(cam_look)
 	var t_fov: float = 62.0
