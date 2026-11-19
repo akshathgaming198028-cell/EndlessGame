@@ -60,7 +60,7 @@ func _clip(file: String, psk: Skeleton3D, rel: String) -> Animation:
 	inst.queue_free()
 	for t in range(an.get_track_count() - 1, -1, -1):
 		var pb := _pbone(psk, an.track_get_path(t).get_concatenated_subnames())
-		if pb == "" or an.track_get_type(t) == Animation.TYPE_POSITION_3D and not pb.ends_with("Hips"):
+		if pb == "" or an.track_get_type(t) == Animation.TYPE_POSITION_3D:
 			an.remove_track(t)
 			continue
 		an.track_set_path(t, NodePath(rel + ":" + pb))
