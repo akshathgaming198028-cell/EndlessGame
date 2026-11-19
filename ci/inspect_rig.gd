@@ -6,7 +6,9 @@ func _init() -> void:
 	var pl: Node = (load("res://assets/player.glb") as PackedScene).instantiate()
 	get_root().add_child(pl)
 	var psk := _find_skel(pl)
-	print("PLAYER scale=", pl.scale, " rot=", pl.rotation_degrees)
+	print("PLAYER scale=", pl.scale, " rot=", pl.rotation_degrees, " skel=", psk != null)
+	if psk != null:
+		print("PLAYER first bones=", [psk.get_bone_name(i) for i in range(4)])
 	_dump_rest("PLAYER", psk)
 	for f in ["Running.fbx", "Zombie Death.fbx", "Idle.fbx", "Jump.fbx", "Falling To Roll.fbx"]:
 		var inst: Node = (load("res://assets/anims/" + f) as PackedScene).instantiate()
@@ -26,13 +28,20 @@ func _init() -> void:
 			for tt in [0.0, an.length * 0.5]:
 				ap.play(nm)
 				ap.seek(tt, true)
+				print("  rest-vs-pose check t=", tt)
 				_lean("  pose at t=%.2f " % tt, ssk)
 		inst.queue_free()
 	quit()
 
+func _bi(sk: Skeleton3D, nm: String) -> int:
+	var i := sk.find_bone("mixamorig:" + nm)
+	if i < 0:
+		i = sk.find_bone("mixamorig_" + nm)
+	return i
+
 func _lean(label: String, sk: Skeleton3D) -> void:
-	var h := sk.find_bone("mixamorig:Hips")
-	var hd := sk.find_bone("mixamorig:Head")
+	var h := _bi(sk, "Hips")
+	var hd := _bi(sk, "Head")
 	if h < 0 or hd < 0:
 		return
 	var hp := sk.get_bone_global_pose(h).origin
@@ -44,11 +53,11 @@ func _dump_rest(label: String, sk: Skeleton3D) -> void:
 	if sk == null:
 		print(label, " NO SKELETON")
 		return
-	for b in ["mixamorig:Hips", "mixamorig:Spine", "mixamorig:Head", "mixamorig:LeftUpLeg", "mixamorig:LeftArm"]:
-		var i := sk.find_bone(b)
+	for b in ["Hips", "Spine", "Head", "LeftUpLeg", "LeftArm"]:
+		var i := _bi(sk, b)
 		if i >= 0:
 			var q := sk.get_bone_global_rest(i).basis.get_rotation_quaternion()
-			print("  ", label, " ", b, " rest_euler_deg=", q.get_euler() * 57.29578, " origin=", sk.get_bone_global_rest(i).origin)
+			print("  ", label, " ", b, " idx=", i, " rest_euler_deg=", q.get_euler() * 57.29578, " origin=", sk.get_bone_global_rest(i).origin)
 
 func _find_skel(n: Node) -> Skeleton3D:
 	if n is Skeleton3D:
