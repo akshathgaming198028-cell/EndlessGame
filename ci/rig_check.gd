@@ -18,6 +18,7 @@ func _run() -> void:
 	var pl: Node3D = (load("res://assets/player.glb") as PackedScene).instantiate()
 	pl.scale = Vector3.ONE * 2.0
 	pl.rotation = Vector3(0, PI, 0)
+	pl.position = Vector3(0, -0.07 * 2.0, 0)
 	get_root().add_child(pl)
 	var psk := _find_skel(pl)
 	var rel := str(pl.get_path_to(psk))
@@ -78,7 +79,7 @@ func _make(file: String, psk: Skeleton3D, rel: String, variant: String, hips_res
 		var is_hips := pb == "mixamorig_Hips" or pb == "mixamorig:Hips"
 		var ty := an.track_get_type(t)
 		if ty == Animation.TYPE_ROTATION_3D:
-			if is_hips and variant == "A":
+			if is_hips and variant == "A" and loop_ok:
 				an.remove_track(t)
 				continue
 			if is_hips and variant == "B" and loop_ok:

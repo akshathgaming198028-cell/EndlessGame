@@ -367,7 +367,8 @@ func _setup_rig(model: Node3D) -> void:
 	model.rotation_degrees.y = 180.0
 	# this rig is 0.74 units tall in its file (measured), so scale it to the player height
 	model.scale = Vector3.ONE * (PLAYER_HEIGHT / 0.74) * 2.0
-	model.position = Vector3.ZERO
+	# lower the character so its lowest foot meets the road (measured: feet sat about 0.07 units up)
+	model.position = Vector3(0, -0.07 * model.scale.y, 0)
 	_matte(model)
 	skel = _find_skeleton(model)
 	if skel != null:
@@ -423,7 +424,7 @@ func _load_anims(model: Node3D) -> void:
 					a.remove_track(t)
 					continue
 				# the hips' own turn is what tilted him: drop it so he stands upright, as in the build where he stood
-				if a.track_get_type(t) == Animation.TYPE_ROTATION_3D and nb == "mixamorighips":
+				if a.track_get_type(t) == Animation.TYPE_ROTATION_3D and nb == "mixamorighips" and (key == "run" or key == "idle"):
 					a.remove_track(t)
 					continue
 				a.track_set_path(t, NodePath(skel_rel + ":" + bones[nb]))
@@ -1364,6 +1365,8 @@ func _update_camera(dt: float) -> void:
 	if shake > 0.0:
 		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.4
 		shake = maxf(0.0, shake - dt * 2.0)
+	if state == State.PLAY and not counting and on_ground:
+		off.y += sin(run_t * 2.0) * 0.02
 	cam.position = cam_pos + off
 	cam.look_at(cam_look)
 	var t_fov: float = 62.0
