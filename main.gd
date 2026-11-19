@@ -97,7 +97,8 @@ var cam_pos := Vector3(0, 4.2, 4.6)
 var cam_look := Vector3(0, 1.0, -9)
 
 var score_label: Label
-var exit_dialog: ConfirmationDialog
+var exit_panel: Control
+var count_label: Label
 var fps_label: Label
 var msg_label: Label
 var pause_btn: Button
@@ -109,6 +110,8 @@ var play_btn: Button
 var retry_btn: Button
 const PLAY_RECT := Rect2(210, 900, 300, 120)
 const PAUSE_RECT := Rect2(24, 40, 96, 96)
+const EXIT_RECT := Rect2(110, 600, 240, 110)
+const CANCEL_RECT := Rect2(370, 600, 240, 110)
 var die_done := false
 var sfx_coin: AudioStreamPlayer
 var sfx_jump: AudioStreamPlayer
@@ -136,14 +139,14 @@ var leaf_colors := [Color("3f9a4f"), Color("55b25e"), Color("2f8645")]
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST or what == NOTIFICATION_WM_CLOSE_REQUEST:
-		if exit_dialog == null:
+		if exit_panel == null:
 			get_tree().quit()
-		elif exit_dialog.visible:
-			exit_dialog.hide()
+		elif exit_panel.visible:
+			exit_panel.visible = false
 		elif state == State.PLAY and not paused:
 			_toggle_pause()
 		else:
-			exit_dialog.popup_centered()
+			exit_panel.visible = true
 
 
 func _ready() -> void:
@@ -592,7 +595,7 @@ func _play_anim(keyword: String) -> void:
 	for a in anim.get_animation_list():
 		if keyword in String(a).to_lower():
 			if anim.current_animation != String(a):
-				anim.play(String(a), 0.15)
+				anim.play(String(a), 0.05)
 			anim.speed_scale = _anim_speed(keyword, String(a))
 			return
 
@@ -623,12 +626,24 @@ func _label(parent: Node, size_px: int) -> Label:
 
 
 func _make_ui() -> void:
-	exit_dialog = ConfirmationDialog.new()
-	exit_dialog.title = "Heist Escape"
-	exit_dialog.dialog_text = "Exit the game?"
-	exit_dialog.ok_button_text = "Exit"
-	exit_dialog.confirmed.connect(func() -> void: get_tree().quit())
-	add_child(exit_dialog)
+	exit_panel = Control.new()
+	exit_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	exit_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	exit_panel.visible = false
+	layer.add_child(exit_panel)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	exit_panel.add_child(dim)
+	var q := _label(exit_panel, 52)
+	q.text = "Exit the game?"
+	q.position = Vector2(0, 440)
+	q.size = Vector2(720, 100)
+	var eb := _big_button(exit_panel, "EXIT", EXIT_RECT)
+	eb.visible = true
+	var cb := _big_button(exit_panel, "CANCEL", CANCEL_RECT)
+	cb.visible = true
 	fps_label = Label.new()
 	fps_label.position = Vector2(20, 1230)
 	fps_label.add_theme_font_size_override("font_size", 26)
@@ -646,6 +661,11 @@ func _make_ui() -> void:
 	score_label.offset_left = 0.0
 	score_label.offset_right = -30.0
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	count_label = _label(layer, 190)
+	count_label.anchor_right = 1.0
+	count_label.anchor_bottom = 1.0
+	count_label.add_theme_constant_override("outline_size", 18)
+	count_label.add_theme_color_override("font_outline_color", Color(0.05, 0.05, 0.12))
 	msg_label = _label(layer, 46)
 	msg_label.anchor_right = 1.0
 	msg_label.anchor_bottom = 1.0
@@ -675,7 +695,7 @@ func _sb(c: Color, radius: int) -> StyleBoxFlat:
 	return sb
 
 
-func _big_button(layer: CanvasLayer, text: String, r: Rect2) -> Button:
+func _big_button(layer: Node, text: String, r: Rect2) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.position = r.position
@@ -1148,7 +1168,7 @@ func _slide() -> void:
 	if on_ground:
 		slide_t = SLIDE_TIME
 	else:
-		vy = -26.0
+		vy = -40.0
 		want_slide = true
 
 
@@ -1159,6 +1179,13 @@ func _hit(r: Rect2, p: Vector2) -> bool:
 
 
 func _input(e: InputEvent) -> void:
+	if exit_panel != null and exit_panel.visible:
+		if e is InputEventScreenTouch and e.pressed:
+			if _hit(EXIT_RECT, e.position):
+				get_tree().quit()
+			elif _hit(CANCEL_RECT, e.position):
+				exit_panel.visible = false
+		return
 	if e is InputEventScreenTouch and e.pressed:
 		if state == State.PLAY and _hit(PAUSE_RECT, e.position):
 			_toggle_pause()
@@ -1210,11 +1237,11 @@ func _process(delta: float) -> void:
 	if counting:
 		count_t -= dt
 		if count_t > 0.0:
-			msg_label.text = str(ceili(count_t))
+			count_label.text = str(ceili(count_t))
 		elif count_t > -0.6:
-			msg_label.text = "GO!"
+			count_label.text = "GO!"
 		else:
-			msg_label.text = ""
+			count_label.text = ""
 			counting = false
 	if state == State.PLAY and not counting:
 		_update_play(dt)
@@ -1407,14 +1434,15 @@ func _animate_player(dt: float) -> void:
 
 func _update_camera(dt: float) -> void:
 	var k: float = 1.0 - exp(-5.0 * dt)
-	var target := Vector3(px * 0.5, 4.2 + py * 0.06, 4.6)
+	var cam_dy := py * 0.3 - (0.6 if slide_t > 0.0 else 0.0)
+	var target := Vector3(px * 0.5, 4.2 + cam_dy, 4.6)
 	cam_pos = cam_pos.lerp(target, k)
 	cam_look = cam_look.lerp(Vector3(px * 0.4, 1.0 + py * 0.08, -9.0), k)
 	var off := Vector3.ZERO
 	if shake > 0.0:
 		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.4
 		shake = maxf(0.0, shake - dt * 2.0)
-	if state == State.PLAY and not counting:
+	if state == State.PLAY and not counting and on_ground and slide_t <= 0.0:
 		off.y += sin(run_t * 2.0) * 0.05
 		off.x += sin(run_t * 1.3) * 0.035
 		off.z += sin(run_t * 2.7) * 0.015
