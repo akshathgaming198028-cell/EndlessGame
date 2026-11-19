@@ -101,6 +101,7 @@ var msg_label: Label
 var pause_btn: Button
 var paused := false
 var counting := false
+var model_base_y := 0.0
 var count_t := 0.0
 var play_btn: Button
 var retry_btn: Button
@@ -368,7 +369,8 @@ func _setup_rig(model: Node3D) -> void:
 	# this rig is 0.74 units tall in its file (measured), so scale it to the player height
 	model.scale = Vector3.ONE * (PLAYER_HEIGHT / 0.74) * 2.0
 	# lower the character so its lowest foot meets the road (measured: feet sat about 0.07 units up)
-	model.position = Vector3(0, -0.06 * model.scale.y, 0)
+	model_base_y = -0.03 * model.scale.y
+	model.position = Vector3(0, model_base_y, 0)
 	_matte(model)
 	skel = _find_skeleton(model)
 	if skel != null:
@@ -1290,6 +1292,17 @@ func _spin_coins(dt: float) -> void:
 				n.rotation.y += dt * 4.0
 
 
+# Lowers the character until its lowest bone touches the road, so the roll and the fall rest on the ground
+func _snap_to_road() -> void:
+	if skel == null:
+		return
+	skel.force_update_all_bone_transforms()
+	var low := 99.0
+	for i in skel.get_bone_count():
+		low = minf(low, (skel.global_transform * skel.get_bone_global_pose(i).origin).y)
+	custom_model.position.y -= low - 0.02
+
+
 func _animate_player(dt: float) -> void:
 	blob.position = Vector3(px, 0.04, 0.0)
 	var bs: float = 0.5 / (1.0 + py * 0.4)
@@ -1310,6 +1323,10 @@ func _animate_player(dt: float) -> void:
 			return
 		_play_anim(kw)
 		custom_model.quaternion = Quaternion(Vector3.UP, PI)
+		if kw == "die" or kw == "slide":
+			_snap_to_road()
+		else:
+			custom_model.position.y = model_base_y
 		return
 
 	var k: float = 1.0 - exp(-18.0 * dt)
@@ -1369,6 +1386,8 @@ func _update_camera(dt: float) -> void:
 		shake = maxf(0.0, shake - dt * 2.0)
 	if state == State.PLAY and not counting and on_ground:
 		off.y += sin(run_t * 2.0) * 0.02
+		off.x += sin(run_t * 1.3) * 0.02
+		off.z += sin(run_t * 2.7) * 0.01
 	cam.position = cam_pos + off
 	cam.look_at(cam_look)
 	var t_fov: float = 62.0
