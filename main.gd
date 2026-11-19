@@ -631,7 +631,6 @@ func _make_ui() -> void:
 	exit_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	exit_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	exit_panel.visible = false
-	layer.add_child(exit_panel)
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.color = Color(0, 0, 0, 0.6)
@@ -654,6 +653,7 @@ func _make_ui() -> void:
 	fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(fps_label)
 	var layer := CanvasLayer.new()
+	layer.add_child(exit_panel)
 	add_child(layer)
 	score_label = _label(layer, 54)
 	score_label.anchor_right = 1.0
