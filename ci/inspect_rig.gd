@@ -8,7 +8,8 @@ func _init() -> void:
 	var psk := _find_skel(pl)
 	print("PLAYER scale=", pl.scale, " rot=", pl.rotation_degrees, " skel=", psk != null)
 	if psk != null:
-		print("PLAYER first bones=", [psk.get_bone_name(i) for i in range(4)])
+		for i in range(4):
+			print("PLAYER bone ", i, " = ", psk.get_bone_name(i))
 	_dump_rest("PLAYER", psk)
 	for f in ["Running.fbx", "Zombie Death.fbx", "Idle.fbx", "Jump.fbx", "Falling To Roll.fbx"]:
 		var inst: Node = (load("res://assets/anims/" + f) as PackedScene).instantiate()
