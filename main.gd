@@ -100,6 +100,12 @@ var score_label: Label
 var msg_label: Label
 var pause_btn: Button
 var paused := false
+var counting := false
+var count_t := 0.0
+var play_btn: Button
+var retry_btn: Button
+const PLAY_RECT := Rect2(210, 900, 300, 120)
+const PAUSE_RECT := Rect2(24, 40, 96, 96)
 var die_done := false
 var sfx_coin: AudioStreamPlayer
 var sfx_jump: AudioStreamPlayer
@@ -616,8 +622,40 @@ func _make_ui() -> void:
 	pause_btn.position = Vector2(24, 40)
 	pause_btn.size = Vector2(96, 96)
 	pause_btn.visible = false
+	pause_btn.add_theme_stylebox_override("normal", _sb(Color(0.08, 0.1, 0.18, 0.7), 22))
+	pause_btn.add_theme_stylebox_override("hover", _sb(Color(0.08, 0.1, 0.18, 0.7), 22))
+	pause_btn.add_theme_stylebox_override("pressed", _sb(Color(0.08, 0.1, 0.18, 0.7), 22))
+	pause_btn.add_theme_stylebox_override("focus", _sb(Color(0.08, 0.1, 0.18, 0.7), 22))
+	pause_btn.add_theme_color_override("font_color", Color("ffffff"))
 	pause_btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(pause_btn)
+	play_btn = _big_button(layer, "PLAY", PLAY_RECT)
+	retry_btn = _big_button(layer, "RETRY", PLAY_RECT)
+
+
+func _sb(c: Color, radius: int) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = c
+	sb.set_corner_radius_all(radius)
+	sb.shadow_color = Color(0, 0, 0, 0.35)
+	sb.shadow_size = 8
+	sb.shadow_offset = Vector2(0, 6)
+	return sb
+
+
+func _big_button(layer: CanvasLayer, text: String, r: Rect2) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.position = r.position
+	b.size = r.size
+	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_theme_font_size_override("font_size", 52)
+	b.add_theme_color_override("font_color", Color("ffffff"))
+	for st in ["normal", "hover", "pressed", "focus"]:
+		b.add_theme_stylebox_override(st, _sb(Color("ff9f1c"), 28))
+	b.visible = false
+	layer.add_child(b)
+	return b
 
 
 # ---------------------------------------------------------------- audio
@@ -969,12 +1007,14 @@ func _set_state(s: State) -> void:
 	state = s
 	if pause_btn != null:
 		pause_btn.visible = s == State.PLAY
+	play_btn.visible = s == State.MENU
+	retry_btn.visible = s == State.DEAD
 	if s == State.MENU:
-		msg_label.text = "TAP TO RUN\n\nswipe left / right: change lane\nswipe up: jump\nswipe down: slide"
+		msg_label.text = "HEIST ESCAPE\n\nswipe left / right: change lane\nswipe up: jump\nswipe down: slide"
 	elif s == State.PLAY:
 		msg_label.text = ""
 	else:
-		msg_label.text = "CRASH!\n%d points\nBest %d\n\ntap to run again" % [_score(), best]
+		msg_label.text = "CRASH!\n%d points\nBest %d" % [_score(), best]
 
 
 func _toggle_pause() -> void:
@@ -982,6 +1022,8 @@ func _toggle_pause() -> void:
 		return
 	paused = not paused
 	pause_btn.text = "GO" if paused else "II"
+	if anim != null:
+		anim.speed_scale = 0.0 if paused else 1.0
 	msg_label.text = "PAUSED\n\ntap GO to resume" if paused else ""
 
 
@@ -1007,6 +1049,8 @@ func _start_game() -> void:
 	body.rotation = Vector3.ZERO
 	body.position = Vector3.ZERO
 	_set_state(State.PLAY)
+	counting = true
+	count_t = 3.0
 
 
 func _die() -> void:
@@ -1071,27 +1115,33 @@ func _slide() -> void:
 		want_slide = true
 
 
-func _in_pause_zone(p: Vector2) -> bool:
-	var r := Rect2(24, 40, 96, 96).grow(24.0)
+func _hit(r: Rect2, p: Vector2) -> bool:
+	var g := r.grow(24.0)
 	var ratio := get_viewport().get_visible_rect().size / Vector2(DisplayServer.window_get_size())
-	return r.has_point(p) or r.has_point(p * ratio)
+	return g.has_point(p) or g.has_point(p * ratio)
 
 
 func _input(e: InputEvent) -> void:
-	if e is InputEventScreenTouch and e.pressed and state == State.PLAY and _in_pause_zone(e.position):
-		_toggle_pause()
-		return
+	if e is InputEventScreenTouch and e.pressed:
+		if state == State.PLAY and _hit(PAUSE_RECT, e.position):
+			_toggle_pause()
+			return
+		if state == State.MENU and _hit(PLAY_RECT, e.position):
+			_start_game()
+			return
+		if state == State.DEAD and dead_t > 0.6 and _hit(PLAY_RECT, e.position):
+			_start_game()
+			return
 	if e is InputEventScreenTouch:
 		if e.pressed:
 			swipe_start = e.position
 			swiping = true
 			swipe_used = false
-			_tap()
 		else:
 			swiping = false
 			swipe_used = false
 	elif e is InputEventScreenDrag:
-		if swiping and not swipe_used and state == State.PLAY and not paused:
+		if swiping and not swipe_used and state == State.PLAY and not paused and not counting:
 			var d: Vector2 = e.position - swipe_start
 			if d.length() >= SWIPE_PX:
 				swipe_used = true
@@ -1102,7 +1152,7 @@ func _input(e: InputEvent) -> void:
 				else:
 					_slide()
 	elif e is InputEventKey:
-		if e.pressed and not e.echo and not paused:
+		if e.pressed and not e.echo and not paused and not counting:
 			if e.keycode == KEY_LEFT or e.keycode == KEY_A:
 				_move_lane(-1)
 			elif e.keycode == KEY_RIGHT or e.keycode == KEY_D:
@@ -1120,7 +1170,16 @@ func _process(delta: float) -> void:
 	var dt: float = minf(delta, 0.05)
 	if paused:
 		return
-	if state == State.PLAY:
+	if counting:
+		count_t -= dt
+		if count_t > 0.0:
+			msg_label.text = str(ceili(count_t))
+		elif count_t > -0.6:
+			msg_label.text = "GO!"
+		else:
+			msg_label.text = ""
+			counting = false
+	if state == State.PLAY and not counting:
 		_update_play(dt)
 	elif state == State.DEAD:
 		dead_t += dt
@@ -1236,7 +1295,7 @@ func _animate_player(dt: float) -> void:
 		var kw := "run"
 		if state == State.DEAD:
 			kw = "die"
-		elif state == State.MENU:
+		elif state == State.MENU or counting:
 			kw = "idle"
 		elif slide_t > 0.0:
 			kw = "slide"
@@ -1302,6 +1361,8 @@ func _update_camera(dt: float) -> void:
 	if shake > 0.0:
 		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.4
 		shake = maxf(0.0, shake - dt * 2.0)
+	if state == State.PLAY and not counting and on_ground:
+		off.y += sin(run_t * 2.0) * 0.06
 	cam.position = cam_pos + off
 	cam.look_at(cam_look)
 	var t_fov: float = 62.0
