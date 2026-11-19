@@ -305,8 +305,8 @@ func _make_player() -> void:
 	player.add_child(body)
 	blob = add_mesh(self, m_disc, Vector3(0.5, 1.0, 0.4), Vector3(0, 0.04, 0), Color(0, 0, 0, 0.35))
 
-	if ResourceLoader.exists("res://assets/player.glb"):
-		var ps = load("res://assets/player.glb")
+	if ResourceLoader.exists("res://assets/playercriminal.fbx"):
+		var ps = load("res://assets/playercriminal.fbx")
 		if ps is PackedScene:
 			custom_model = ps.instantiate()
 			body.add_child(custom_model)
@@ -368,7 +368,7 @@ func _setup_rig(model: Node3D) -> void:
 	# this rig is 0.74 units tall in its file (measured), so scale it to the player height
 	model.scale = Vector3.ONE * (PLAYER_HEIGHT / 0.74) * 2.0
 	# lower the character so its lowest foot meets the road (measured: feet sat about 0.07 units up)
-	model.position = Vector3(0, -0.07 * model.scale.y, 0)
+	model.position = Vector3(0, -0.06 * model.scale.y, 0)
 	_matte(model)
 	skel = _find_skeleton(model)
 	if skel != null:
@@ -424,9 +424,6 @@ func _load_anims(model: Node3D) -> void:
 					a.remove_track(t)
 					continue
 				# the hips' own turn is what tilted him: drop it so he stands upright, as in the build where he stood
-				if a.track_get_type(t) == Animation.TYPE_ROTATION_3D and nb == "mixamorighips" and key != "die":
-					a.remove_track(t)
-					continue
 				a.track_set_path(t, NodePath(skel_rel + ":" + bones[nb]))
 			# only running and idle repeat; death, jump and slide play once
 			a.loop_mode = Animation.LOOP_LINEAR if (key == "run" or key == "idle") else Animation.LOOP_NONE
