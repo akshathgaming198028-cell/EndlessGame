@@ -424,7 +424,7 @@ func _load_anims(model: Node3D) -> void:
 					a.remove_track(t)
 					continue
 				# the hips' own turn is what tilted him: drop it so he stands upright, as in the build where he stood
-				if a.track_get_type(t) == Animation.TYPE_ROTATION_3D and nb == "mixamorighips" and (key == "run" or key == "idle"):
+				if a.track_get_type(t) == Animation.TYPE_ROTATION_3D and nb == "mixamorighips" and key != "die":
 					a.remove_track(t)
 					continue
 				a.track_set_path(t, NodePath(skel_rel + ":" + bones[nb]))
