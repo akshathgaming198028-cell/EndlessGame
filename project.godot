@@ -4,7 +4,9 @@ config_version=5
 [application]
 
 config/name="Heist Escape"
-run/main_scene="res://main.tscn"
+run/main_scene="res://splash.tscn"
+boot_splash/show_image=false
+boot_splash/bg_color=Color(0.0705882, 0.0901961, 0.160784, 1)
 config/features=PackedStringArray("4.3", "GL Compatibility")
 config/icon="res://icon.svg"
 

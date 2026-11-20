@@ -111,6 +111,20 @@ var retry_btn: Button
 const PLAY_RECT := Rect2(210, 900, 300, 120)
 const PAUSE_RECT := Rect2(24, 40, 96, 96)
 const EXIT_RECT := Rect2(110, 600, 240, 110)
+const SETTINGS_RECT := Rect2(210, 1040, 300, 100)
+const PAUSE_SETTINGS_RECT := Rect2(210, 840, 300, 100)
+const RESUME_RECT := Rect2(210, 700, 300, 120)
+const SET_BAR := Rect2(150, 640, 420, 40)
+const SET_RESET := Rect2(210, 760, 300, 110)
+const SET_BACK := Rect2(210, 900, 300, 110)
+var volume := 0.8
+var settings_open := false
+var settings_btn: Button
+var resume_btn: Button
+var pause_bg: Control
+var set_panel: Control
+var set_fill: ColorRect
+var set_label: Label
 const CANCEL_RECT := Rect2(370, 600, 240, 110)
 var die_done := false
 var sfx_coin: AudioStreamPlayer
@@ -152,6 +166,7 @@ func _notification(what: int) -> void:
 
 func _ready() -> void:
 	rng.randomize()
+	_load_settings()
 	get_tree().set_auto_accept_quit(false)
 	Engine.max_fps = 60
 	DisplayServer.screen_set_keep_on(true)
@@ -654,6 +669,7 @@ func _make_ui() -> void:
 	add_child(fps_label)
 	var layer := CanvasLayer.new()
 	layer.add_child(exit_panel)
+	_make_menus(layer)
 	add_child(layer)
 	score_label = _label(layer, 54)
 	score_label.anchor_right = 1.0
@@ -1057,12 +1073,117 @@ func _score() -> int:
 	return int(dist) + coins * 10
 
 
+func _refresh_menu_buttons() -> void:
+	if pause_bg == null:
+		return
+	var menu := state == State.MENU
+	var paused_now := state == State.PLAY and paused
+	play_btn.visible = menu
+	retry_btn.visible = state == State.DEAD
+	resume_btn.visible = paused_now
+	settings_btn.visible = menu or paused_now
+	settings_btn.position = (SETTINGS_RECT if menu else PAUSE_SETTINGS_RECT).position
+	pause_bg.visible = paused_now
+	if pause_btn != null:
+		pause_btn.visible = state == State.PLAY
+
+
+func _make_menus(layer: CanvasLayer) -> void:
+	# pause background: your picture if it's in assets/, otherwise a dark cover
+	pause_bg = Control.new()
+	pause_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pause_bg.visible = false
+	layer.add_child(pause_bg)
+	if ResourceLoader.exists("res://assets/pause_bg.png"):
+		var tr := TextureRect.new()
+		tr.texture = load("res://assets/pause_bg.png")
+		tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pause_bg.add_child(tr)
+	else:
+		var dim := ColorRect.new()
+		dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+		dim.color = Color(0.05, 0.06, 0.12, 0.7)
+		dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pause_bg.add_child(dim)
+	resume_btn = _big_button(layer, "RESUME", RESUME_RECT)
+	settings_btn = _big_button(layer, "SETTINGS", SETTINGS_RECT)
+	# settings screen: one volume slider, reset and back
+	set_panel = Control.new()
+	set_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	set_panel.visible = false
+	layer.add_child(set_panel)
+	var sdim := ColorRect.new()
+	sdim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	sdim.color = Color(0.05, 0.06, 0.12, 0.92)
+	sdim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	set_panel.add_child(sdim)
+	var title := _label(set_panel, 60)
+	title.text = "SETTINGS"
+	title.position = Vector2(0, 460)
+	title.size = Vector2(720, 110)
+	set_label = _label(set_panel, 40)
+	set_label.position = Vector2(0, 560)
+	set_label.size = Vector2(720, 60)
+	var bar_bg := ColorRect.new()
+	bar_bg.position = SET_BAR.position
+	bar_bg.size = SET_BAR.size
+	bar_bg.color = Color(0.25, 0.28, 0.4)
+	bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	set_panel.add_child(bar_bg)
+	set_fill = ColorRect.new()
+	set_fill.position = SET_BAR.position
+	set_fill.size = Vector2(0, SET_BAR.size.y)
+	set_fill.color = Color("ff9f1c")
+	set_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	set_panel.add_child(set_fill)
+	var rb := _big_button(set_panel, "RESET", SET_RESET)
+	rb.visible = true
+	var bb := _big_button(set_panel, "BACK", SET_BACK)
+	bb.visible = true
+	_set_volume(volume)
+
+
+func _set_volume(v: float) -> void:
+	volume = clampf(v, 0.0, 1.0)
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.001)))
+	set_fill.size.x = SET_BAR.size.x * volume
+	set_label.text = "VOLUME  %d%%" % roundi(volume * 100.0)
+	var cf := ConfigFile.new()
+	cf.set_value("audio", "volume", volume)
+	cf.save("user://settings.cfg")
+
+
+func _load_settings() -> void:
+	var cf := ConfigFile.new()
+	if cf.load("user://settings.cfg") == OK:
+		volume = float(cf.get_value("audio", "volume", 0.8))
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.001)))
+
+
+func _open_settings() -> void:
+	settings_open = true
+	set_panel.visible = true
+	_refresh_menu_buttons()
+	settings_btn.visible = false
+	resume_btn.visible = false
+	play_btn.visible = false
+	retry_btn.visible = false
+
+
+func _close_settings() -> void:
+	settings_open = false
+	set_panel.visible = false
+	_refresh_menu_buttons()
+
+
 func _set_state(s: State) -> void:
 	state = s
-	if pause_btn != null:
-		pause_btn.visible = s == State.PLAY
-	play_btn.visible = s == State.MENU
-	retry_btn.visible = s == State.DEAD
+	_refresh_menu_buttons()
 	if s == State.MENU:
 		msg_label.text = "HEIST ESCAPE\n\nswipe left / right: change lane\nswipe up: jump\nswipe down: slide"
 	elif s == State.PLAY:
@@ -1082,6 +1203,7 @@ func _toggle_pause() -> void:
 	if not paused:
 		counting = true
 		count_t = 3.0
+	_refresh_menu_buttons()
 
 
 func _start_game() -> void:
@@ -1190,7 +1312,29 @@ func _input(e: InputEvent) -> void:
 			elif _hit(CANCEL_RECT, e.position):
 				exit_panel.visible = false
 		return
+	if settings_open:
+		if e is InputEventScreenTouch and not e.pressed:
+			swiping = false
+		if e is InputEventScreenTouch and e.pressed:
+			if _hit(SET_RESET, e.position):
+				_set_volume(0.8)
+			elif _hit(SET_BACK, e.position):
+				_close_settings()
+		if (e is InputEventScreenTouch and e.pressed) or e is InputEventScreenDrag:
+			if SET_BAR.grow(30.0).has_point(e.position):
+				_set_volume((e.position.x - SET_BAR.position.x) / SET_BAR.size.x)
+		return
 	if e is InputEventScreenTouch and e.pressed:
+		if state == State.MENU and _hit(SETTINGS_RECT, e.position):
+			_open_settings()
+			return
+		if state == State.PLAY and paused:
+			if _hit(RESUME_RECT, e.position):
+				_toggle_pause()
+				return
+			if _hit(PAUSE_SETTINGS_RECT, e.position):
+				_open_settings()
+				return
 		if state == State.PLAY and _hit(PAUSE_RECT, e.position):
 			_toggle_pause()
 			return
