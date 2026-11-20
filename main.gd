@@ -1129,9 +1129,9 @@ func _make_menus(layer: CanvasLayer) -> void:
 	pause_title.text = "GAME IN PAUSE"
 	pause_title.position = Vector2(0, 110)
 	pause_title.size = Vector2(720, 70)
-	resume_btn = _pill(layer, "RESUME", PAUSE_RESUME, Color("1f8f2e"), 26)
-	pause_set_btn = _pill(layer, "SETTINGS", PAUSE_SET, Color("c4b82a"), 22)
-	home_btn = _pill(layer, "HOME", PAUSE_HOME, Color("9a2030"), 52)
+	resume_btn = _img_btn(layer, "res://assets/ui/pause_resume.png", PAUSE_RESUME)
+	pause_set_btn = _img_btn(layer, "res://assets/ui/pause_settings.png", PAUSE_SET)
+	home_btn = _img_btn(layer, "res://assets/ui/pause_home.png", PAUSE_HOME)
 	settings_btn = _big_button(layer, "SETTINGS", SETTINGS_RECT)
 	_make_vignette(layer)
 	# settings screen: one volume slider, reset and back
@@ -1171,19 +1171,18 @@ func _make_menus(layer: CanvasLayer) -> void:
 	_set_volume(volume)
 
 
-func _pill(layer: Node, text: String, r: Rect2, col: Color, fs: int) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.position = r.position
-	b.size = r.size
-	b.add_theme_font_size_override("font_size", fs)
-	b.add_theme_color_override("font_color", Color("f4f1e8"))
-	for k in ["normal", "hover", "pressed", "focus"]:
-		b.add_theme_stylebox_override(k, _sb(col, 28))
-	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.visible = false
-	layer.add_child(b)
-	return b
+# a button drawn from a picture (cut from the concept screen), placed at the rect; taps are read by position
+func _img_btn(layer: Node, path: String, r: Rect2) -> TextureRect:
+	var t := TextureRect.new()
+	t.texture = load(path)
+	t.position = r.position
+	t.size = r.size
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	t.visible = false
+	layer.add_child(t)
+	return t
 
 
 # full-screen red edge glow used when you get hit
@@ -1261,6 +1260,9 @@ func _go_home() -> void:
 	count_label.text = ""
 	if anim != null:
 		anim.speed_scale = 1.0
+	shake = 0.0
+	vig_amt = 0.0
+	land_kick = 0.0
 	_reset_world()
 	lane = 0
 	px = 0.0
@@ -1291,6 +1293,9 @@ func _start_game() -> void:
 	die_done = false
 	lives = 2
 	hit_cool = 0.0
+	shake = 0.0
+	vig_amt = 0.0
+	land_kick = 0.0
 	if anim != null:
 		anim.stop()
 		anim.speed_scale = 1.0
@@ -1307,7 +1312,7 @@ func _start_game() -> void:
 func _die(face_z: float = NAN) -> void:
 	if state != State.PLAY:
 		return
-	shake = 2.8
+	shake = 1.5
 	vig_amt = 1.0
 	dead_t = 0.0
 	# the body is thrown clear in front of the obstacle, so it never sits inside it
@@ -1692,11 +1697,11 @@ func _update_camera(dt: float) -> void:
 	var off := Vector3.ZERO
 	if shake > 0.0:
 		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.6
-		shake = maxf(0.0, shake - dt * 0.45)
+		shake = maxf(0.0, shake - dt * 0.9)
 	if state == State.PLAY and not counting and on_ground and slide_t <= 0.0:
 		# running sways left and right; only a small up and down
 		off.y += sin(run_t * 2.0) * 0.012
-		off.x += sin(run_t) * 0.2
+		off.x += sin(run_t * 1.3) * 0.09
 	off.y -= land_kick
 	land_kick = maxf(0.0, land_kick - dt * 2.5)
 	if vig_mat != null:
