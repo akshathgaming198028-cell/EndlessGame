@@ -10,6 +10,11 @@ func _initialize() -> void:
 	game = ps.instantiate()
 	get_root().add_child(game)
 	print("SMOKE game added")
+	var sp := load("res://splash.tscn") as PackedScene
+	print("SMOKE splash loaded=", sp != null)
+	var splash := sp.instantiate()
+	get_root().add_child(splash)
+	print("SMOKE splash added")
 
 func _process(_d: float) -> bool:
 	frames += 1
