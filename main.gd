@@ -114,8 +114,9 @@ const PLAY_RECT := Rect2(210, 900, 300, 120)
 const PAUSE_RECT := Rect2(24, 40, 96, 96)
 const EXIT_RECT := Rect2(110, 600, 240, 110)
 const SETTINGS_RECT := Rect2(210, 1040, 300, 100)
-const PAUSE_SETTINGS_RECT := Rect2(210, 840, 300, 100)
-const RESUME_RECT := Rect2(210, 700, 300, 120)
+const PAUSE_RESUME := Rect2(535, 1097, 145, 145)
+const PAUSE_SET := Rect2(377, 1107, 138, 138)
+const PAUSE_HOME := Rect2(50, 1115, 283, 125)
 const SET_BAR := Rect2(150, 640, 420, 40)
 const SET_RESET := Rect2(210, 760, 300, 110)
 const SET_BACK := Rect2(210, 900, 300, 110)
@@ -123,6 +124,13 @@ var volume := 0.8
 var settings_open := false
 var settings_btn: Button
 var resume_btn: Button
+var home_btn: Button
+var pause_set_btn: Button
+var pause_title: Label
+var vig_amt := 0.0
+var vig_mat: ShaderMaterial
+var land_kick := 0.0
+var brush_id := 0
 var pause_bg: Control
 var set_panel: Control
 var set_fill: ColorRect
@@ -1087,12 +1095,13 @@ func _refresh_menu_buttons() -> void:
 	var paused_now := state == State.PLAY and paused
 	play_btn.visible = menu
 	retry_btn.visible = state == State.DEAD
-	resume_btn.visible = paused_now
-	settings_btn.visible = menu or paused_now
-	settings_btn.position = (SETTINGS_RECT if menu else PAUSE_SETTINGS_RECT).position
+	settings_btn.visible = menu
 	pause_bg.visible = paused_now
+	resume_btn.visible = paused_now
+	pause_set_btn.visible = paused_now
+	home_btn.visible = paused_now
 	if pause_btn != null:
-		pause_btn.visible = state == State.PLAY
+		pause_btn.visible = state == State.PLAY and not paused
 
 
 func _make_menus(layer: CanvasLayer) -> void:
@@ -1102,9 +1111,9 @@ func _make_menus(layer: CanvasLayer) -> void:
 	pause_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pause_bg.visible = false
 	layer.add_child(pause_bg)
-	if ResourceLoader.exists("res://assets/pause_bg.png"):
+	if ResourceLoader.exists("res://assets/pause_bg.jpg"):
 		var tr := TextureRect.new()
-		tr.texture = load("res://assets/pause_bg.png")
+		tr.texture = load("res://assets/pause_bg.jpg")
 		tr.set_anchors_preset(Control.PRESET_FULL_RECT)
 		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
@@ -1116,8 +1125,15 @@ func _make_menus(layer: CanvasLayer) -> void:
 		dim.color = Color(0.05, 0.06, 0.12, 0.7)
 		dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		pause_bg.add_child(dim)
-	resume_btn = _big_button(layer, "RESUME", RESUME_RECT)
+	pause_title = _label(pause_bg, 46)
+	pause_title.text = "GAME IN PAUSE"
+	pause_title.position = Vector2(0, 110)
+	pause_title.size = Vector2(720, 70)
+	resume_btn = _pill(layer, "RESUME", PAUSE_RESUME, Color("1f8f2e"), 26)
+	pause_set_btn = _pill(layer, "SETTINGS", PAUSE_SET, Color("c4b82a"), 22)
+	home_btn = _pill(layer, "HOME", PAUSE_HOME, Color("9a2030"), 52)
 	settings_btn = _big_button(layer, "SETTINGS", SETTINGS_RECT)
+	_make_vignette(layer)
 	# settings screen: one volume slider, reset and back
 	set_panel = Control.new()
 	set_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1155,6 +1171,34 @@ func _make_menus(layer: CanvasLayer) -> void:
 	_set_volume(volume)
 
 
+func _pill(layer: Node, text: String, r: Rect2, col: Color, fs: int) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.position = r.position
+	b.size = r.size
+	b.add_theme_font_size_override("font_size", fs)
+	b.add_theme_color_override("font_color", Color("f4f1e8"))
+	for k in ["normal", "hover", "pressed", "focus"]:
+		b.add_theme_stylebox_override(k, _sb(col, 28))
+	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.visible = false
+	layer.add_child(b)
+	return b
+
+
+# full-screen red edge glow used when you get hit
+func _make_vignette(layer: CanvasLayer) -> void:
+	var sh := Shader.new()
+	sh.code = "shader_type canvas_item;\nuniform float strength = 0.0;\nvoid fragment() {\n\tvec2 d = (UV - vec2(0.5)) * vec2(1.0, 1.25);\n\tfloat a = smoothstep(0.2, 0.75, length(d)) * strength;\n\tCOLOR = vec4(0.9, 0.02, 0.05, a);\n}\n"
+	vig_mat = ShaderMaterial.new()
+	vig_mat.shader = sh
+	var r := ColorRect.new()
+	r.set_anchors_preset(Control.PRESET_FULL_RECT)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.material = vig_mat
+	layer.add_child(r)
+
+
 func _set_volume(v: float) -> void:
 	volume = clampf(v, 0.0, 1.0)
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(volume, 0.001)))
@@ -1175,11 +1219,9 @@ func _load_settings() -> void:
 func _open_settings() -> void:
 	settings_open = true
 	set_panel.visible = true
-	_refresh_menu_buttons()
-	settings_btn.visible = false
-	resume_btn.visible = false
-	play_btn.visible = false
-	retry_btn.visible = false
+	for b in [play_btn, retry_btn, settings_btn, resume_btn, pause_set_btn, home_btn, pause_btn]:
+		if b != null:
+			b.visible = false
 
 
 func _close_settings() -> void:
@@ -1206,11 +1248,29 @@ func _toggle_pause() -> void:
 	pause_btn.text = "GO" if paused else "II"
 	if anim != null:
 		anim.speed_scale = 0.0 if paused else 1.0
-	msg_label.text = "PAUSED\n\ntap GO to resume" if paused else ""
+	msg_label.text = ""
 	if not paused:
 		counting = true
 		count_t = 3.0
 	_refresh_menu_buttons()
+
+
+func _go_home() -> void:
+	paused = false
+	counting = false
+	count_label.text = ""
+	if anim != null:
+		anim.speed_scale = 1.0
+	_reset_world()
+	lane = 0
+	px = 0.0
+	py = 0.0
+	vy = 0.0
+	on_ground = true
+	slide_t = 0.0
+	want_slide = false
+	player.position = Vector3.ZERO
+	_set_state(State.MENU)
 
 
 func _start_game() -> void:
@@ -1247,7 +1307,8 @@ func _start_game() -> void:
 func _die(face_z: float = NAN) -> void:
 	if state != State.PLAY:
 		return
-	shake = 1.5
+	shake = 2.8
+	vig_amt = 1.0
 	dead_t = 0.0
 	# the body is thrown clear in front of the obstacle, so it never sits inside it
 	if not is_nan(face_z):
@@ -1343,11 +1404,14 @@ func _input(e: InputEvent) -> void:
 			_open_settings()
 			return
 		if state == State.PLAY and paused:
-			if _hit(RESUME_RECT, e.position):
+			if _hit(PAUSE_RESUME, e.position):
 				_toggle_pause()
 				return
-			if _hit(PAUSE_SETTINGS_RECT, e.position):
+			if _hit(PAUSE_SET, e.position):
 				_open_settings()
+				return
+			if _hit(PAUSE_HOME, e.position):
+				_go_home()
 				return
 		if state == State.PLAY and _hit(PAUSE_RECT, e.position):
 			_toggle_pause()
@@ -1427,10 +1491,11 @@ func _update_play(dt: float) -> void:
 	var tx: float = lane * LANE_W
 	px = lerpf(px, tx, 1.0 - exp(-16.0 * dt))
 	if not on_ground:
-		vy -= GRAVITY * dt
+		vy -= GRAVITY * dt * (1.35 if vy < 0.0 else 1.0)
 		py += vy * dt
 		if py <= 0.0 and vy <= 0.0:
 			py = 0.0
+			land_kick = clampf(-vy * 0.035, 0.0, 0.45)
 			vy = 0.0
 			on_ground = true
 			if want_slide:
@@ -1491,23 +1556,27 @@ func _check_collisions() -> void:
 					_die(cz + float(it["z"]) - 0.9)
 					return
 			elif t == "train":
+				if it["node"].get_instance_id() == brush_id and hit_cool > 0.0:
+					continue
 				if dz < 4.3 and py < 2.7:
 					var face: float = cz + float(it["z"]) - 4.6
 					if dx < 1.15:
 						_die(face)
 						return
 					# brushing a train in the next lane while changing lanes: costs one life
-					if dx < 1.9 and _side_brush(float(it["x"])):
+					if dx < 1.9 and _side_brush(float(it["x"]), it):
 						_die(face)
 						return
 
 
-func _side_brush(train_x: float) -> bool:
+func _side_brush(train_x: float, it: Dictionary) -> bool:
 	if hit_cool > 0.0:
 		return false
 	hit_cool = 0.9
+	brush_id = it["node"].get_instance_id()
 	lives -= 1
-	shake = maxf(shake, 0.5)
+	shake = maxf(shake, 1.2)
+	vig_amt = maxf(vig_amt, 0.7)
 	sfx_hit.play()
 	# knocked back toward the lane it came from
 	lane = clampi(lane + (-1 if train_x > px else 1), -1, 1)
@@ -1616,18 +1685,23 @@ func _animate_player(dt: float) -> void:
 
 func _update_camera(dt: float) -> void:
 	var k: float = 1.0 - exp(-5.0 * dt)
-	var cam_dy := py * 0.3 - (0.6 if slide_t > 0.0 else 0.0)
+	var cam_dy := py * 0.3 - (0.9 if slide_t > 0.0 else 0.0)
 	var target := Vector3(px * 0.5, 4.2 + cam_dy, 4.6)
 	cam_pos = cam_pos.lerp(target, k)
 	cam_look = cam_look.lerp(Vector3(px * 0.4, 1.0 + py * 0.08, -9.0), k)
 	var off := Vector3.ZERO
 	if shake > 0.0:
 		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.6
-		shake = maxf(0.0, shake - dt * 0.9)
+		shake = maxf(0.0, shake - dt * 0.45)
 	if state == State.PLAY and not counting and on_ground and slide_t <= 0.0:
 		# running sways left and right; only a small up and down
 		off.y += sin(run_t * 2.0) * 0.012
-		off.x += sin(run_t * 1.3) * 0.09
+		off.x += sin(run_t) * 0.2
+	off.y -= land_kick
+	land_kick = maxf(0.0, land_kick - dt * 2.5)
+	if vig_mat != null:
+		vig_amt = maxf(0.0, vig_amt - dt * 0.6)
+		vig_mat.set_shader_parameter("strength", vig_amt)
 	cam.position = cam_pos + off
 	cam.look_at(cam_look)
 	var t_fov: float = 62.0

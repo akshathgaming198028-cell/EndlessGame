@@ -10,6 +10,7 @@ var shown := 0.0
 var done := false
 
 func _ready() -> void:
+	get_tree().set_auto_accept_quit(false)
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	var bg := ColorRect.new()
@@ -42,6 +43,12 @@ func _ready() -> void:
 	bar.size = Vector2(0, 24)
 	layer.add_child(bar)
 	ResourceLoader.load_threaded_request(NEXT)
+
+func _notification(what: int) -> void:
+	# back is ignored while loading, so it can't close the app before the game is up
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		pass
+
 
 func _process(delta: float) -> void:
 	shown += delta
