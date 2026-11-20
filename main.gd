@@ -123,9 +123,9 @@ const SET_BACK := Rect2(210, 900, 300, 110)
 var volume := 0.8
 var settings_open := false
 var settings_btn: Button
-var resume_btn: Button
-var home_btn: Button
-var pause_set_btn: Button
+var resume_btn: Control
+var home_btn: Control
+var pause_set_btn: Control
 var pause_title: Label
 var vig_amt := 0.0
 var vig_mat: ShaderMaterial
