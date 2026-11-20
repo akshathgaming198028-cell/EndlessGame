@@ -4,6 +4,7 @@ config_version=5
 [application]
 
 config/name="Heist Escape"
+config/quit_on_go_back=false
 run/main_scene="res://splash.tscn"
 boot_splash/show_image=false
 boot_splash/bg_color=Color(0.0705882, 0.0901961, 0.160784, 1)

@@ -67,6 +67,8 @@ var jump_buf := 0.0
 var run_t := 0.0
 var dead_t := 0.0
 var shake := 0.0
+var lives := 2
+var hit_cool := 0.0
 var next_index := 0
 var free_lane := 0
 var prev_train := false
@@ -153,6 +155,11 @@ var leaf_colors := [Color("3f9a4f"), Color("55b25e"), Color("2f8645")]
 
 
 func _notification(what: int) -> void:
+	# leaving the app (home, recents, notification shade) pauses a run instead of losing it
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+		if state == State.PLAY and not paused:
+			_toggle_pause()
+		return
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST or what == NOTIFICATION_WM_CLOSE_REQUEST:
 		if exit_panel == null:
 			get_tree().quit()
@@ -1222,6 +1229,8 @@ func _start_game() -> void:
 	run_t = 0.0
 	paused = false
 	die_done = false
+	lives = 2
+	hit_cool = 0.0
 	if anim != null:
 		anim.stop()
 		anim.speed_scale = 1.0
@@ -1235,11 +1244,16 @@ func _start_game() -> void:
 	_set_state(State.PLAY)
 
 
-func _die() -> void:
+func _die(face_z: float = NAN) -> void:
 	if state != State.PLAY:
 		return
-	shake = 0.6
+	shake = 1.5
 	dead_t = 0.0
+	# the body is thrown clear in front of the obstacle, so it never sits inside it
+	if not is_nan(face_z):
+		player.position.z = face_z
+	vy = 5.0
+	on_ground = false
 	sfx_hit.play()
 	var sc: int = _score()
 	if sc > best:
@@ -1408,6 +1422,8 @@ func _update_play(dt: float) -> void:
 	run_t += dt * speed * 0.8
 	if jump_buf > 0.0:
 		jump_buf -= dt
+	if hit_cool > 0.0:
+		hit_cool -= dt
 	var tx: float = lane * LANE_W
 	px = lerpf(px, tx, 1.0 - exp(-16.0 * dt))
 	if not on_ground:
@@ -1468,16 +1484,34 @@ func _check_collisions() -> void:
 					_collect(it)
 			elif t == "barrier":
 				if dz < 0.5 and dx < 1.0 and py < 0.8:
-					_die()
+					_die(cz + float(it["z"]) - 0.9)
 					return
 			elif t == "overhead":
 				if dz < 0.5 and dx < 1.0 and py < 1.6 and py + h > 1.15:
-					_die()
+					_die(cz + float(it["z"]) - 0.9)
 					return
 			elif t == "train":
-				if dz < 4.3 and dx < 1.15 and py < 2.7:
-					_die()
-					return
+				if dz < 4.3 and py < 2.7:
+					var face: float = cz + float(it["z"]) - 4.6
+					if dx < 1.15:
+						_die(face)
+						return
+					# brushing a train in the next lane while changing lanes: costs one life
+					if dx < 1.9 and _side_brush(float(it["x"])):
+						_die(face)
+						return
+
+
+func _side_brush(train_x: float) -> bool:
+	if hit_cool > 0.0:
+		return false
+	hit_cool = 0.9
+	lives -= 1
+	shake = maxf(shake, 0.5)
+	sfx_hit.play()
+	# knocked back toward the lane it came from
+	lane = clampi(lane + (-1 if train_x > px else 1), -1, 1)
+	return lives <= 0
 
 
 func _collect(it: Dictionary) -> void:
@@ -1528,7 +1562,7 @@ func _animate_player(dt: float) -> void:
 			return
 		_play_anim(kw)
 		custom_model.quaternion = Quaternion(Vector3.UP, PI)
-		if kw == "die" or kw == "slide":
+		if kw == "slide" or (kw == "die" and on_ground):
 			_snap_to_road()
 		else:
 			custom_model.position.y = model_base_y
@@ -1588,12 +1622,12 @@ func _update_camera(dt: float) -> void:
 	cam_look = cam_look.lerp(Vector3(px * 0.4, 1.0 + py * 0.08, -9.0), k)
 	var off := Vector3.ZERO
 	if shake > 0.0:
-		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.4
-		shake = maxf(0.0, shake - dt * 2.0)
+		off = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * shake * 0.6
+		shake = maxf(0.0, shake - dt * 0.9)
 	if state == State.PLAY and not counting and on_ground and slide_t <= 0.0:
-		off.y += sin(run_t * 2.0) * 0.05
-		off.x += sin(run_t * 1.3) * 0.035
-		off.z += sin(run_t * 2.7) * 0.015
+		# running sways left and right; only a small up and down
+		off.y += sin(run_t * 2.0) * 0.012
+		off.x += sin(run_t * 1.3) * 0.09
 	cam.position = cam_pos + off
 	cam.look_at(cam_look)
 	var t_fov: float = 62.0
@@ -1606,7 +1640,7 @@ func _update_ui() -> void:
 	fps_label.text = "%d fps  %d nodes" % [Engine.get_frames_per_second(), Performance.get_monitor(Performance.OBJECT_NODE_COUNT)]
 	var t := ""
 	if state == State.PLAY:
-		t = "%d\nCOINS  %d" % [_score(), coins]
+		t = "%d\nCOINS  %d\nLIVES  %d" % [_score(), coins, lives]
 		if map_tiles.size() > 0:
 			var zs := ""
 			for tile in map_tiles:

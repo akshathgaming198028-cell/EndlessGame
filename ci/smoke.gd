@@ -18,7 +18,13 @@ func _initialize() -> void:
 
 func _process(_d: float) -> bool:
 	frames += 1
+	if frames == 30:
+		game.call("_start_game")
+	if frames == 35:
+		game.call("_die", -3.0)
+		print("SMOKE died state=", game.get("state"), " lives=", game.get("lives"))
 	if frames == 60:
+		print("SMOKE quit_on_go_back=", ProjectSettings.get_setting("application/config/quit_on_go_back"))
 		print("SMOKE ok after 60 frames")
 		quit()
 	return false
