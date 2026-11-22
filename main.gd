@@ -1316,8 +1316,6 @@ func _die(face_z: float = NAN) -> void:
 	vig_amt = 1.0
 	dead_t = 0.0
 	# the body is thrown clear in front of the obstacle, so it never sits inside it
-	if not is_nan(face_z):
-		player.position.z = face_z
 	vy = 5.0
 	on_ground = false
 	sfx_hit.play()
@@ -1700,8 +1698,8 @@ func _update_camera(dt: float) -> void:
 		shake = maxf(0.0, shake - dt * 0.9)
 	if state == State.PLAY and not counting and on_ground and slide_t <= 0.0:
 		# running sways left and right; only a small up and down
-		off.y += sin(run_t * 2.0) * 0.012
-		off.x += sin(run_t * 1.3) * 0.09
+		off.y += sin(run_t * 2.0) * 0.05
+		off.x += sin(run_t) * 0.0505
 	off.y -= land_kick
 	land_kick = maxf(0.0, land_kick - dt * 2.5)
 	if vig_mat != null:
